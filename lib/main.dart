@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:math' as math;
 
 void main() => runApp(const LabKitApp());
 
@@ -94,6 +95,105 @@ class Lab3Progress {
   double? timeShiftMs; // time shift (ms) — manual entry
 }
 
+class Lab4Progress {
+  // Part A.1
+  double? rOhm_A1; // resistor value (Ω)
+  double? c_uF_A1; // capacitor value (µF)
+  // Part A.2
+  bool circuitBuilt_41 = false;
+
+  // Part B (1 µF)
+  bool vinSaved_1uF = false;
+  bool voutSaved_1uF = false;
+
+  // Part C (10 µF)
+  bool vinSaved_10uF = false;
+  bool voutSaved_10uF = false;
+
+  // Part D (100 µF)
+  bool vinSaved_100uF = false;
+  bool voutSaved_100uF = false;
+
+  // Part E (tau)
+  double? tauMs;
+
+  // Part F (notes)
+  String? notesCompare;
+}
+
+class Lab4_2Progress {
+  // Part A: measured inductors and resistor
+  double? L1_mH; // inductance of inductor 1 (mH)
+  double? RL1_Ohm; // resistance of inductor 1 (Ω)
+  double? L2_mH;
+  double? RL2_Ohm;
+  double? L3_mH;
+  double? RL3_Ohm;
+  double? R_Ohm; // resistor R (Ω)
+
+  // Part B: built confirmation
+  bool circuitBuilt_42 = false;
+
+  // Part C: saved flags
+  bool vinSaved_42 = false;
+  bool voutSaved_42 = false;
+
+  // Part D: tau measured from waveform cursor (ms)
+  double? tauGraph_ms;
+
+  // Part E: tau calculated via L/(R+RL) (ms), and prelab tau for comparison
+  double? tauCalc_ms;
+  double? tauPrelab_ms;
+  String? notesCompare; // optional notes on comparison
+}
+
+class Lab5Progress {
+  // Part A: potentiometer min/max resistance (Ω)
+  double? rPotMinOhm;
+  double? rPotMaxOhm;
+
+  // Part B: built confirmation and notes on phase shift
+  bool circuitBuilt_5 = false;
+  bool vinMinSaved = false;
+  bool voutMinSaved = false;
+  bool vinMaxSaved = false;
+  bool voutMaxSaved = false;
+  String? notesPhaseShift; // compare phase shift as resistance changes
+
+  // Part C: analysis of Vin_max/Vout_max
+  double? timeShiftMsMax; // measured time shift (ms)
+  double? phaseShiftDegMax; // calculated phase shift (degrees)
+
+  // Part D: RMS measurements
+  double? vrmsSource; // RMS of source (V)
+  double? vrmsPot; // RMS across potentiometer (V)
+  double? vrmsCap; // RMS across capacitor (V)
+
+  // Part E: KVL check
+  bool? kvlApplies; // optional yes/no
+  String? notesKVL; // explanation / missing info
+}
+
+class Lab6Row {
+  final int fHz;
+  double? vin_mV; // measured Vin RMS (mV)
+  double? vout_mV; // measured Vout RMS (mV)
+  double? ratio; // Vout/Vin (unitless)
+  Lab6Row({required this.fHz, this.vin_mV, this.vout_mV, this.ratio});
+}
+
+class Lab6Progress {
+  bool circuitBuilt_6 = false; // Part A: checkbox after building
+  // Part E: -3 dB frequency and theoretical f0
+  double? fMinus3dBApproxHz; // from drawn Bode plot
+  double? f0TheoryHz; // from 1/(2πRC)
+  double? R_Ohm; // for f0 calc
+  double? C_uF; // for f0 calc (µF; converted to F in calc)
+  // Part F: high/low pass and explanation
+  bool? isHighPass; // true=High-pass, false=Low-pass, null=unset
+  String? notesHighLow;
+}
+
 class AppState extends ChangeNotifier {
   AppMode mode = AppMode.none;
   bool deviceConnected = false;
@@ -153,6 +253,17 @@ class AppState extends ChangeNotifier {
   Future<void> sendDisableOutputs() async {
     // TODO (BLE): send OutputOff (cmd_id 0x3F) or SetOutputs(enable=false)
     setOutputsEnabled(false);
+  }
+
+  Future<void> sendEnableSignalGeneratorSine({
+    required int freqHz, // e.g., 1000
+    required int amplitude_mVpp, // e.g., 1000 (1.0 Vpp)
+    int offset_mV = 0,
+    int phase_mdeg = 0,
+  }) async {
+    // TODO (BLE): Build and send SetOutputs or a dedicated command to enable the signal generator.
+    // Example intent: waveform=sine, freq=freqHz, amplitude=amplitude_mVpp, offset=offset_mV, phase=phase_mdeg.
+    // On Ack OK, you could set a local flag if you want to reflect generator state in the UI.
   }
 
   final lab1 = Lab1Progress();
@@ -272,6 +383,256 @@ class AppState extends ChangeNotifier {
 
   void setLab3VoutWaveform(WaveformData w) {
     lab3VoutWaveform = w;
+    notifyListeners();
+  }
+
+  final lab4_1 = Lab4Progress();
+
+  // Reuse WaveformData from earlier; if you don’t have it, add the same class you used for Lab 3.
+  // Per‑stage saved waveforms for Lab 4.1
+  WaveformData? lab4Vin_1uF;
+  WaveformData? lab4Vout_1uF;
+  WaveformData? lab4Vin_10uF;
+  WaveformData? lab4Vout_10uF;
+  WaveformData? lab4Vin_100uF;
+  WaveformData? lab4Vout_100uF;
+
+  void setLab4Vin_1uF(WaveformData w) {
+    lab4Vin_1uF = w;
+    lab4_1.vinSaved_1uF = true;
+    notifyListeners();
+  }
+
+  void setLab4Vout_1uF(WaveformData w) {
+    lab4Vout_1uF = w;
+    lab4_1.voutSaved_1uF = true;
+    notifyListeners();
+  }
+
+  void setLab4Vin_10uF(WaveformData w) {
+    lab4Vin_10uF = w;
+    lab4_1.vinSaved_10uF = true;
+    notifyListeners();
+  }
+
+  void setLab4Vout_10uF(WaveformData w) {
+    lab4Vout_10uF = w;
+    lab4_1.voutSaved_10uF = true;
+    notifyListeners();
+  }
+
+  void setLab4Vin_100uF(WaveformData w) {
+    lab4Vin_100uF = w;
+    lab4_1.vinSaved_100uF = true;
+    notifyListeners();
+  }
+
+  void setLab4Vout_100uF(WaveformData w) {
+    lab4Vout_100uF = w;
+    lab4_1.voutSaved_100uF = true;
+    notifyListeners();
+  }
+
+  void updateLab4({
+    bool? circuitBuilt_41,
+    double? tauMs,
+    String? notesCompare,
+    double? rOhm_A1,
+    double? c_uF_A1,
+  }) {
+    if (circuitBuilt_41 != null) lab4_1.circuitBuilt_41 = circuitBuilt_41;
+    if (tauMs != null) lab4_1.tauMs = tauMs;
+    if (notesCompare != null) lab4_1.notesCompare = notesCompare;
+    if (rOhm_A1 != null) lab4_1.rOhm_A1 = rOhm_A1;
+    if (c_uF_A1 != null) lab4_1.c_uF_A1 = c_uF_A1;
+    notifyListeners();
+  }
+
+  // Optional placeholders to wire to BLE later
+  Future<void> sendCaptureVin() async {
+    // TODO: trigger Vin snapshot via BLE and call setLab4Vin_* for the current stage
+  }
+  Future<void> sendCaptureVout() async {
+    // TODO: trigger Vout snapshot via BLE and call setLab4Vout_* for the current stage
+  }
+
+  final lab4_2 = Lab4_2Progress();
+
+  WaveformData? lab4_2VinWaveform;
+  WaveformData? lab4_2VoutWaveform;
+
+  void setLab4_2VinWaveform(WaveformData w) {
+    lab4_2VinWaveform = w;
+    lab4_2.vinSaved_42 = true;
+    notifyListeners();
+  }
+
+  void setLab4_2VoutWaveform(WaveformData w) {
+    lab4_2VoutWaveform = w;
+    lab4_2.voutSaved_42 = true;
+    notifyListeners();
+  }
+
+  void updateLab4_2({
+    double? L1_mH,
+    double? RL1_Ohm,
+    double? L2_mH,
+    double? RL2_Ohm,
+    double? L3_mH,
+    double? RL3_Ohm,
+    double? R_Ohm,
+    bool? circuitBuilt_42,
+    bool? vinSaved_42,
+    bool? voutSaved_42,
+    double? tauGraph_ms,
+    double? tauCalc_ms,
+    double? tauPrelab_ms,
+    String? notesCompare,
+  }) {
+    if (L1_mH != null) lab4_2.L1_mH = L1_mH;
+    if (RL1_Ohm != null) lab4_2.RL1_Ohm = RL1_Ohm;
+    if (L2_mH != null) lab4_2.L2_mH = L2_mH;
+    if (RL2_Ohm != null) lab4_2.RL2_Ohm = RL2_Ohm;
+    if (L3_mH != null) lab4_2.L3_mH = L3_mH;
+    if (RL3_Ohm != null) lab4_2.RL3_Ohm = RL3_Ohm;
+    if (R_Ohm != null) lab4_2.R_Ohm = R_Ohm;
+
+    if (circuitBuilt_42 != null) lab4_2.circuitBuilt_42 = circuitBuilt_42;
+    if (vinSaved_42 != null) lab4_2.vinSaved_42 = vinSaved_42;
+    if (voutSaved_42 != null) lab4_2.voutSaved_42 = voutSaved_42;
+
+    if (tauGraph_ms != null) lab4_2.tauGraph_ms = tauGraph_ms;
+    if (tauCalc_ms != null) lab4_2.tauCalc_ms = tauCalc_ms;
+    if (tauPrelab_ms != null) lab4_2.tauPrelab_ms = tauPrelab_ms;
+    if (notesCompare != null) lab4_2.notesCompare = notesCompare;
+
+    notifyListeners();
+  }
+
+  final lab5 = Lab5Progress();
+
+  // Saved waveforms for Lab 5 (min/max potentiometer settings)
+  WaveformData? lab5VinMinWaveform;
+  WaveformData? lab5VoutMinWaveform;
+  WaveformData? lab5VinMaxWaveform;
+  WaveformData? lab5VoutMaxWaveform;
+
+  void setLab5VinMinWaveform(WaveformData w) {
+    lab5VinMinWaveform = w;
+    lab5.vinMinSaved = true;
+    notifyListeners();
+  }
+
+  void setLab5VoutMinWaveform(WaveformData w) {
+    lab5VoutMinWaveform = w;
+    lab5.voutMinSaved = true;
+    notifyListeners();
+  }
+
+  void setLab5VinMaxWaveform(WaveformData w) {
+    lab5VinMaxWaveform = w;
+    lab5.vinMaxSaved = true;
+    notifyListeners();
+  }
+
+  void setLab5VoutMaxWaveform(WaveformData w) {
+    lab5VoutMaxWaveform = w;
+    lab5.voutMaxSaved = true;
+    notifyListeners();
+  }
+
+  void updateLab5({
+    double? rPotMinOhm,
+    double? rPotMaxOhm,
+    bool? circuitBuilt_5,
+    String? notesPhaseShift,
+    double? timeShiftMsMax,
+    double? phaseShiftDegMax,
+    double? vrmsSource,
+    double? vrmsPot,
+    double? vrmsCap,
+    bool? kvlApplies,
+    String? notesKVL,
+  }) {
+    if (rPotMinOhm != null) lab5.rPotMinOhm = rPotMinOhm;
+    if (rPotMaxOhm != null) lab5.rPotMaxOhm = rPotMaxOhm;
+    if (circuitBuilt_5 != null) lab5.circuitBuilt_5 = circuitBuilt_5;
+    if (notesPhaseShift != null) lab5.notesPhaseShift = notesPhaseShift;
+    if (timeShiftMsMax != null) lab5.timeShiftMsMax = timeShiftMsMax;
+    if (phaseShiftDegMax != null) lab5.phaseShiftDegMax = phaseShiftDegMax;
+    if (vrmsSource != null) lab5.vrmsSource = vrmsSource;
+    if (vrmsPot != null) lab5.vrmsPot = vrmsPot;
+    if (vrmsCap != null) lab5.vrmsCap = vrmsCap;
+    if (kvlApplies != null) lab5.kvlApplies = kvlApplies;
+    if (notesKVL != null) lab5.notesKVL = notesKVL;
+    notifyListeners();
+  }
+
+  // Lab 6
+  final lab6 = Lab6Progress();
+
+  // Table rows (frequencies matching your image)
+  final List<Lab6Row> lab6Rows = [
+    for (final f in [
+      1,
+      2,
+      10,
+      20,
+      50,
+      100,
+      200,
+      250,
+      300,
+      350,
+      400,
+      450,
+      500,
+      800,
+      1000,
+      1200,
+    ])
+      Lab6Row(fHz: f),
+  ];
+
+  void updateLab6Build({required bool built}) {
+    lab6.circuitBuilt_6 = built;
+    notifyListeners();
+  }
+
+  // Update a single row (by index) with new values; auto-computes ratio
+  void updateLab6Row({required int index, double? vin_mV, double? vout_mV}) {
+    final row = lab6Rows[index];
+    if (vin_mV != null) row.vin_mV = vin_mV;
+    if (vout_mV != null) row.vout_mV = vout_mV;
+    if ((row.vin_mV ?? 0) > 0 && row.vout_mV != null) {
+      row.ratio = row.vout_mV! / row.vin_mV!;
+    }
+    notifyListeners();
+  }
+
+  // Part E updates (+ compute f0 when R/C known)
+  void updateLab6Bode({
+    double? fMinus3dBApproxHz,
+    double? R_Ohm,
+    double? C_uF,
+  }) {
+    if (fMinus3dBApproxHz != null) lab6.fMinus3dBApproxHz = fMinus3dBApproxHz;
+    if (R_Ohm != null) lab6.R_Ohm = R_Ohm;
+    if (C_uF != null) lab6.C_uF = C_uF;
+    if (lab6.R_Ohm != null &&
+        lab6.C_uF != null &&
+        lab6.R_Ohm! > 0 &&
+        lab6.C_uF! > 0) {
+      final cF = lab6.C_uF! * 1e-6; // µF → F
+      lab6.f0TheoryHz = 1.0 / (2.0 * 3.141592653589793 * lab6.R_Ohm! * cF);
+    }
+    notifyListeners();
+  }
+
+  // Part F (high/low pass)
+  void updateLab6HighLow({bool? isHighPass, String? notes}) {
+    if (isHighPass != null) lab6.isHighPass = isHighPass;
+    if (notes != null) lab6.notesHighLow = notes;
     notifyListeners();
   }
 }
@@ -581,7 +942,8 @@ class LabListScreen extends StatelessWidget {
       'Lab 1: Ohm’s Law and Kirchoff’s Laws',
       'Lab 2: Node Voltages and Equivalent Circuits',
       'Lab 3: Intro to Op Amps',
-      'Lab 4: First Order RC and RL Transients',
+      'Lab 4.1: First Order RC and RL Transients',
+      'Lab 4.2: First Order RC and RL Transients',
       'Lab 5: Intro to AC Signals',
       'Lab 6: Frequency Response',
       'Lab 7: Op Amp Integrator and Active Filter',
@@ -614,14 +976,16 @@ class LabListScreen extends StatelessWidget {
       case 3:
         return const Lab3Screen();
       case 4:
-        return const Lab4Screen();
+        return const Lab4_1Screen();
       case 5:
-        return const Lab5Screen();
+        return const Lab4_2Screen();
       case 6:
-        return const Lab6Screen();
+        return const Lab5Screen();
       case 7:
-        return const Lab7Screen();
+        return const Lab6Screen();
       case 8:
+        return const Lab7Screen();
+      case 9:
         return const Lab8Screen();
       default:
         return const Lab1Screen();
@@ -2137,8 +2501,6 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                     'and apply a 0.5 V DC input to the circuit.',
                   ),
                   const SizedBox(height: 12),
-                  // Replace with your real asset when ready:
-                  // InteractiveViewer(child: Image.asset('assets/images/labs/lab2_circuit.png', fit: BoxFit.contain)),
                   InteractiveViewer(
                     minScale: 0.5,
                     maxScale: 5.0,
@@ -2751,22 +3113,2613 @@ class _Lab3ScreenState extends State<Lab3Screen> {
   }
 }
 
-class Lab4Screen extends StatelessWidget {
-  const Lab4Screen({super.key});
+class Lab4_1Screen extends StatefulWidget {
+  const Lab4_1Screen({super.key});
   @override
-  Widget build(BuildContext c) => _labStub(c, 'Lab 4: RLC Resonance');
+  State<Lab4_1Screen> createState() => _Lab4_1ScreenState();
 }
 
-class Lab5Screen extends StatelessWidget {
+class _Lab4_1ScreenState extends State<Lab4_1Screen> {
+  final _tauCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
+  final _rA1Ctrl = TextEditingController();
+  final _cA1Ctrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final s = context.read<AppState>().lab4_1;
+    _tauCtrl.text = s.tauMs?.toString() ?? '';
+    _notesCtrl.text = s.notesCompare ?? '';
+    _rA1Ctrl.text = s.rOhm_A1?.toString() ?? '';
+    _cA1Ctrl.text = s.c_uF_A1?.toString() ?? '';
+  }
+
+  @override
+  void dispose() {
+    _tauCtrl.dispose();
+    _notesCtrl.dispose();
+    _rA1Ctrl.dispose();
+    _cA1Ctrl.dispose();
+    super.dispose();
+  }
+
+  double? _parseDouble(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
+  void _save() {
+    context.read<AppState>().updateLab4(
+      tauMs: _parseDouble(_tauCtrl.text),
+      notesCompare: _notesCtrl.text.trim().isEmpty
+          ? null
+          : _notesCtrl.text.trim(),
+    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Lab 4.1 progress saved')));
+  }
+
+  // Helper to add dummy data until BLE is wired
+  WaveformData _dummyWave(String label, double amp, double phase) {
+    final n = 1024;
+    final sr = 20000.0;
+    final samples = List<double>.generate(
+      n,
+      (i) => amp * math.sin(2 * math.pi * i / 64 + phase),
+    );
+    return WaveformData(label: label, samples: samples, sampleRateHz: sr);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final connected = app.deviceConnected;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Lab 4.1: RC Response with Different Capacitors'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          if (!connected) const ConnectionWarning(),
+
+          // Part A — Build circuit 4.1
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part A.1 — Record Component Values',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Record the resistor and capacitor values used in Circuit 4.1.',
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _rA1Ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Resistor R (Ω)',
+                    ),
+                    onChanged: (text) {
+                      final v = double.tryParse(text.trim());
+                      if (v != null)
+                        context.read<AppState>().updateLab4(rOhm_A1: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _cA1Ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Capacitor C (µF)',
+                    ),
+                    onChanged: (text) {
+                      final v = double.tryParse(text.trim());
+                      if (v != null)
+                        context.read<AppState>().updateLab4(c_uF_A1: v);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part A.2 — Build Circuit 4.1 and Enable Signal Generator',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Build the circuit per the diagram. The only input is the signal generator. '
+                    'Enable the signal generator with the specified output.',
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Diagram (lab4_circuit1.png)
+                  Container(
+                    height: 240,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      child: Image.asset(
+                        'assets/images/labs/lab4_circuit1.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: context.watch<AppState>().lab4_1.circuitBuilt_41,
+                        onChanged: (v) => context.read<AppState>().updateLab4(
+                          circuitBuilt_41: v ?? false,
+                        ),
+                      ),
+                      const Text('I have built the circuit as shown'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Header label
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.ssid_chart,
+                        color: context.watch<AppState>().deviceConnected
+                            ? Colors.green
+                            : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('Enable signal generator input'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Enable signal generator with specific output (example settings)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final connected = context
+                            .read<AppState>()
+                            .deviceConnected;
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Connect to the device to change outputs.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        if (!context.read<AppState>().lab4_1.circuitBuilt_41) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Check the box after building first.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        // Example output: sine, 1 kHz, 1.0 Vpp, 0 V offset
+                        context.read<AppState>().sendEnableSignalGeneratorSine(
+                          freqHz: 1000,
+                          amplitude_mVpp: 1000,
+                          offset_mV: 0,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Signal generator enabled (sine 1 kHz, 1.0 Vpp)',
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Enable signal generator (sine 1 kHz, 1.0 Vpp)',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Disable outputs (safety)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        final connected = context
+                            .read<AppState>()
+                            .deviceConnected;
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Connect to the device to change outputs.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().sendDisableOutputs();
+                      },
+                      child: const Text('Disable Outputs'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part B — Save input/output waveforms (1 µF)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part B — Save Vin/Vout (Capacitor = 1 µF)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Capture and save the input (Vin) and output (Vout) waveforms.',
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        // TODO: replace with real BLE snapshot for Vin (1 µF)
+                        context.read<AppState>().setLab4Vin_1uF(
+                          _dummyWave('Vin (1 µF)', 1.0, 0.0),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vin (1 µF) saved')),
+                        );
+                      },
+                      child: const Text('Save Vin (1 µF)'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        // TODO: replace with real BLE snapshot for Vout (1 µF)
+                        context.read<AppState>().setLab4Vout_1uF(
+                          _dummyWave('Vout (1 µF)', 0.7, 0.2),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vout (1 µF) saved')),
+                        );
+                      },
+                      child: const Text('Save Vout (1 µF)'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Saved: Vin ${app.lab4_1.vinSaved_1uF ? '✓' : '—'} | Vout ${app.lab4_1.voutSaved_1uF ? '✓' : '—'}',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part C — Replace 1 µF with 10 µF and save waveforms
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part C — Replace Capacitor with 10 µF and Save',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Replace the 1 µF capacitor with 10 µF, then save Vin and Vout again.',
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().setLab4Vin_10uF(
+                          _dummyWave('Vin (10 µF)', 1.0, 0.0),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vin (10 µF) saved')),
+                        );
+                      },
+                      child: const Text('Save Vin (10 µF)'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().setLab4Vout_10uF(
+                          _dummyWave('Vout (10 µF)', 0.8, 0.4),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vout (10 µF) saved')),
+                        );
+                      },
+                      child: const Text('Save Vout (10 µF)'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Saved: Vin ${app.lab4_1.vinSaved_10uF ? '✓' : '—'} | Vout ${app.lab4_1.voutSaved_10uF ? '✓' : '—'}',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part D — Replace 10 µF with 100 µF and save waveforms
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part D — Replace Capacitor with 100 µF and Save',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Replace the 10 µF capacitor with 100 µF, then save Vin and Vout again.',
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().setLab4Vin_100uF(
+                          _dummyWave('Vin (100 µF)', 1.0, 0.0),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vin (100 µF) saved')),
+                        );
+                      },
+                      child: const Text('Save Vin (100 µF)'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().setLab4Vout_100uF(
+                          _dummyWave('Vout (100 µF)', 0.9, 0.7),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vout (100 µF) saved')),
+                        );
+                      },
+                      child: const Text('Save Vout (100 µF)'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Saved: Vin ${app.lab4_1.vinSaved_100uF ? '✓' : '—'} | Vout ${app.lab4_1.voutSaved_100uF ? '✓' : '—'}',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part E — Measure tau using τ = R × C
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part E — Time Constant τ = R × C',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Compute τ = R × C for your circuit and enter the value (in milliseconds).',
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _tauCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'τ (ms)'),
+                    onChanged: (text) {
+                      final v = _parseDouble(text);
+                      if (v != null)
+                        context.read<AppState>().updateLab4(tauMs: v);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part F — Compare saved waveforms and explain differences using τ
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part F — Compare Waveforms (1 µF, 10 µF, 100 µF)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Open the saved waveforms for each capacitor value and explain differences using τ.',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab4Vin_1uF;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vin (1 µF)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab4Vout_1uF;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vout (1 µF)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab4Vin_10uF;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vin (10 µF)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab4Vout_10uF;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vout (10 µF)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab4Vin_100uF;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vin (100 µF)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab4Vout_100uF;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vout (100 µF)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _notesCtrl,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Notes: Explain differences using τ',
+                    ),
+                    onChanged: (text) {
+                      context.read<AppState>().updateLab4(
+                        notesCompare: text.trim().isEmpty ? null : text.trim(),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Back to Labs'),
+              ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: _save,
+                child: const Text('Save Progress'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class Lab4_2Screen extends StatefulWidget {
+  const Lab4_2Screen({super.key});
+  @override
+  State<Lab4_2Screen> createState() => _Lab4_2ScreenState();
+}
+
+class _Lab4_2ScreenState extends State<Lab4_2Screen> {
+  // Controllers (A: inductors/resistor; D/E: tau values; E notes)
+  final _L1Ctrl = TextEditingController();
+  final _RL1Ctrl = TextEditingController();
+  final _L2Ctrl = TextEditingController();
+  final _RL2Ctrl = TextEditingController();
+  final _L3Ctrl = TextEditingController();
+  final _RL3Ctrl = TextEditingController();
+  final _RCtrl = TextEditingController();
+
+  final _tauGraphCtrl = TextEditingController(); // Part D
+  final _tauCalcCtrl = TextEditingController(); // Part E
+  final _tauPrelabCtrl = TextEditingController(); // Part E
+  final _notesECtrl = TextEditingController(); // Part E comparison notes
+
+  @override
+  void initState() {
+    super.initState();
+    final s = context.read<AppState>().lab4_2;
+    _L1Ctrl.text = s.L1_mH?.toString() ?? '';
+    _RL1Ctrl.text = s.RL1_Ohm?.toString() ?? '';
+    _L2Ctrl.text = s.L2_mH?.toString() ?? '';
+    _RL2Ctrl.text = s.RL2_Ohm?.toString() ?? '';
+    _L3Ctrl.text = s.L3_mH?.toString() ?? '';
+    _RL3Ctrl.text = s.RL3_Ohm?.toString() ?? '';
+    _RCtrl.text = s.R_Ohm?.toString() ?? '';
+    _tauGraphCtrl.text = s.tauGraph_ms?.toString() ?? '';
+    _tauCalcCtrl.text = s.tauCalc_ms?.toString() ?? '';
+    _tauPrelabCtrl.text = s.tauPrelab_ms?.toString() ?? '';
+    _notesECtrl.text = s.notesCompare ?? '';
+  }
+
+  @override
+  void dispose() {
+    _L1Ctrl.dispose();
+    _RL1Ctrl.dispose();
+    _L2Ctrl.dispose();
+    _RL2Ctrl.dispose();
+    _L3Ctrl.dispose();
+    _RL3Ctrl.dispose();
+    _RCtrl.dispose();
+    _tauGraphCtrl.dispose();
+    _tauCalcCtrl.dispose();
+    _tauPrelabCtrl.dispose();
+    _notesECtrl.dispose();
+    super.dispose();
+  }
+
+  double? _parseDouble(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
+  WaveformData _dummyWave(String label, double amp, double phase) {
+    final n = 1024;
+    final sr = 20000.0;
+    final samples = List<double>.generate(
+      n,
+      (i) => amp * math.sin(2 * math.pi * i / 64 + phase),
+    );
+    return WaveformData(label: label, samples: samples, sampleRateHz: sr);
+  }
+
+  void _saveAll() {
+    final app = context.read<AppState>();
+    app.updateLab4_2(
+      L1_mH: _parseDouble(_L1Ctrl.text),
+      RL1_Ohm: _parseDouble(_RL1Ctrl.text),
+      L2_mH: _parseDouble(_L2Ctrl.text),
+      RL2_Ohm: _parseDouble(_RL2Ctrl.text),
+      L3_mH: _parseDouble(_L3Ctrl.text),
+      RL3_Ohm: _parseDouble(_RL3Ctrl.text),
+      R_Ohm: _parseDouble(_RCtrl.text),
+      tauGraph_ms: _parseDouble(_tauGraphCtrl.text),
+      tauCalc_ms: _parseDouble(_tauCalcCtrl.text),
+      tauPrelab_ms: _parseDouble(_tauPrelabCtrl.text),
+      notesCompare: _notesECtrl.text.trim().isEmpty
+          ? null
+          : _notesECtrl.text.trim(),
+    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Lab 4.2 progress saved')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final connected = app.deviceConnected;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Lab 4.2: RL Response with Inductors'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          if (!connected) const ConnectionWarning(),
+
+          // Part A — Measure inductance and resistance of 3 inductors + resistor R
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part A — Measure Inductors and Resistor',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Measure the inductance (mH) and internal resistance (Ω) of three inductors, and the resistance of the resistor R. Record the values below.',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.speed,
+                        color: connected ? Colors.blue : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          connected
+                              ? 'Meter available'
+                              : 'Connect device to use meter',
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          if (!connected) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connect to use the meter.'),
+                              ),
+                            );
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Opening Meter (placeholder)'),
+                            ),
+                          );
+                        },
+                        child: const Text('Open Meter'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Inductor 1
+                  TextField(
+                    controller: _L1Ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'L1 (mH)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null) app.updateLab4_2(L1_mH: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _RL1Ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'R_L1 (Ω)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null) app.updateLab4_2(RL1_Ohm: v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  // Inductor 2
+                  TextField(
+                    controller: _L2Ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'L2 (mH)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null) app.updateLab4_2(L2_mH: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _RL2Ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'R_L2 (Ω)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null) app.updateLab4_2(RL2_Ohm: v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  // Inductor 3
+                  TextField(
+                    controller: _L3Ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'L3 (mH)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null) app.updateLab4_2(L3_mH: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _RL3Ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'R_L3 (Ω)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null) app.updateLab4_2(RL3_Ohm: v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  // Resistor R
+                  TextField(
+                    controller: _RCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'R (Ω)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null) app.updateLab4_2(R_Ohm: v);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part B — Build circuit and enable signal generator (same specs), with tip text
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part B — Build Circuit and Enable Signal Generator',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Build the circuit per the diagram. The input is provided by the signal generator.\n\n'
+                    'Tips:\n'
+                    '• Use the three inductors in series to create a 360 mH inductor.\n'
+                    '• The 420 Ω resistor is the sum of the internal resistances of the inductors; NOT an external resistor. \n',
+                  ),
+                  const SizedBox(height: 12),
+                  // Diagram placeholder (replace with your asset if available)
+                  Container(
+                    height: 240,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      child: Image.asset(
+                        'assets/images/labs/lab4_circuit2.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: app.lab4_2.circuitBuilt_42,
+                        onChanged: (v) => context.read<AppState>().updateLab4_2(
+                          circuitBuilt_42: v ?? false,
+                        ),
+                      ),
+                      const Text('I have built the circuit as shown'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.ssid_chart,
+                        color: connected ? Colors.green : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('Enable signal generator input'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Connect to the device to change outputs.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        if (!app.lab4_2.circuitBuilt_42) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Check the box after building first.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        // Same specs as before: sine 1 kHz, 1.0 Vpp, 0 V offset
+                        context.read<AppState>().sendEnableSignalGeneratorSine(
+                          freqHz: 1000,
+                          amplitude_mVpp: 1000,
+                          offset_mV: 0,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Signal generator enabled (sine 1 kHz, 1.0 Vpp)',
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Enable signal generator (sine 1 kHz, 1.0 Vpp)',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Connect to the device to change outputs.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().sendDisableOutputs();
+                      },
+                      child: const Text('Disable Outputs'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part C — Measure and save input/output waveforms
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part C — Save Vin and Vout Waveforms',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Capture and save the input (Vin) and output (Vout) waveforms.',
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        // TODO: replace dummy with real snapshot via BLE
+                        context.read<AppState>().setLab4_2VinWaveform(
+                          _dummyWave('Vin (4.2)', 1.0, 0.0),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vin waveform saved')),
+                        );
+                      },
+                      child: const Text('Save Vin waveform'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        // TODO: replace dummy with real snapshot via BLE
+                        context.read<AppState>().setLab4_2VoutWaveform(
+                          _dummyWave('Vout (4.2)', 0.7, 0.3),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vout waveform saved')),
+                        );
+                      },
+                      child: const Text('Save Vout waveform'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Saved: Vin ${app.lab4_2.vinSaved_42 ? '✓' : '—'} | Vout ${app.lab4_2.voutSaved_42 ? '✓' : '—'}',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part D — Measure tau using cursor on saved waveforms (as in prelab)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part D — τ from Waveform Cursor (ms)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Use the waveform cursor method (as in prelab) to determine τ from a saved waveform. Enter τ (in ms).',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context
+                                .read<AppState>()
+                                .lab4_2VinWaveform;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vin waveform'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context
+                                .read<AppState>()
+                                .lab4_2VoutWaveform;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vout waveform'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _tauGraphCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'τ (ms) — from cursor measurement',
+                    ),
+                    onChanged: (text) {
+                      final v = _parseDouble(text);
+                      if (v != null) app.updateLab4_2(tauGraph_ms: v);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part E — Calculate τ = L / (R + RL) and compare
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part E — τ = L / (R + RL) (ms) and Comparison',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Compute τ using τ = L / (R + RL), where L is total inductance, R is the resistor, and RL is the total resistance of the inductor(s).\n'
+                    'Enter your calculated τ and the prelab τ, then write a note comparing these values with τ from Part D.',
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _tauCalcCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'τ_calc (ms) — L / (R + RL)',
+                    ),
+                    onChanged: (text) {
+                      final v = _parseDouble(text);
+                      if (v != null) app.updateLab4_2(tauCalc_ms: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _tauPrelabCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'τ_prelab (ms)',
+                    ),
+                    onChanged: (text) {
+                      final v = _parseDouble(text);
+                      if (v != null) app.updateLab4_2(tauPrelab_ms: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _notesECtrl,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText:
+                          'Notes: Compare τ_calc, τ_prelab, and τ_cursor (Part D)',
+                    ),
+                    onChanged: (text) {
+                      app.updateLab4_2(
+                        notesCompare: text.trim().isEmpty ? null : text.trim(),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Back to Labs'),
+              ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: _saveAll,
+                child: const Text('Save Progress'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class Lab5Screen extends StatefulWidget {
   const Lab5Screen({super.key});
   @override
-  Widget build(BuildContext c) => _labStub(c, 'Lab 5: Diodes');
+  State<Lab5Screen> createState() => _Lab5ScreenState();
 }
 
-class Lab6Screen extends StatelessWidget {
+class _Lab5ScreenState extends State<Lab5Screen> {
+  // Controllers
+  final _rPotMinCtrl = TextEditingController();
+  final _rPotMaxCtrl = TextEditingController();
+
+  final _notesPhaseCtrl = TextEditingController();
+
+  final _timeShiftMaxCtrl = TextEditingController();
+  final _phaseShiftMaxCtrl = TextEditingController();
+
+  final _vrmsSourceCtrl = TextEditingController();
+  final _vrmsPotCtrl = TextEditingController();
+  final _vrmsCapCtrl = TextEditingController();
+
+  bool? _kvlApplies;
+  final _notesKVLCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final s = context.read<AppState>().lab5;
+    _rPotMinCtrl.text = s.rPotMinOhm?.toString() ?? '';
+    _rPotMaxCtrl.text = s.rPotMaxOhm?.toString() ?? '';
+    _notesPhaseCtrl.text = s.notesPhaseShift ?? '';
+    _timeShiftMaxCtrl.text = s.timeShiftMsMax?.toString() ?? '';
+    _phaseShiftMaxCtrl.text = s.phaseShiftDegMax?.toString() ?? '';
+    _vrmsSourceCtrl.text = s.vrmsSource?.toString() ?? '';
+    _vrmsPotCtrl.text = s.vrmsPot?.toString() ?? '';
+    _vrmsCapCtrl.text = s.vrmsCap?.toString() ?? '';
+    _kvlApplies = s.kvlApplies;
+    _notesKVLCtrl.text = s.notesKVL ?? '';
+  }
+
+  @override
+  void dispose() {
+    _rPotMinCtrl.dispose();
+    _rPotMaxCtrl.dispose();
+    _notesPhaseCtrl.dispose();
+    _timeShiftMaxCtrl.dispose();
+    _phaseShiftMaxCtrl.dispose();
+    _vrmsSourceCtrl.dispose();
+    _vrmsPotCtrl.dispose();
+    _vrmsCapCtrl.dispose();
+    _notesKVLCtrl.dispose();
+    super.dispose();
+  }
+
+  double? _parseDouble(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
+  // Dummy waveforms until BLE is wired
+  WaveformData _dummyWave(String label, double amp, double phase) {
+    final n = 1024;
+    final sr = 20000.0;
+    final samples = List<double>.generate(
+      n,
+      (i) => amp * math.sin(2 * math.pi * i / 64 + phase),
+    );
+    return WaveformData(label: label, samples: samples, sampleRateHz: sr);
+  }
+
+  void _save() {
+    context.read<AppState>().updateLab5(
+      rPotMinOhm: _parseDouble(_rPotMinCtrl.text),
+      rPotMaxOhm: _parseDouble(_rPotMaxCtrl.text),
+      notesPhaseShift: _notesPhaseCtrl.text.trim().isEmpty
+          ? null
+          : _notesPhaseCtrl.text.trim(),
+      timeShiftMsMax: _parseDouble(_timeShiftMaxCtrl.text),
+      phaseShiftDegMax: _parseDouble(_phaseShiftMaxCtrl.text),
+      vrmsSource: _parseDouble(_vrmsSourceCtrl.text),
+      vrmsPot: _parseDouble(_vrmsPotCtrl.text),
+      vrmsCap: _parseDouble(_vrmsCapCtrl.text),
+      kvlApplies: _kvlApplies,
+      notesKVL: _notesKVLCtrl.text.trim().isEmpty
+          ? null
+          : _notesKVLCtrl.text.trim(),
+    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Lab 5 progress saved')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final connected = app.deviceConnected;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Lab 5: Potentiometer and Phase Shift'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          if (!connected) const ConnectionWarning(),
+
+          // Part A — Connect potentiometer and measure min/max resistance
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part A — Potentiometer Min/Max Resistance',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Connect the potentiometer on an empty breadboard section. Measure its minimum and maximum resistance (Ω).',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.speed,
+                        color: connected ? Colors.blue : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          connected
+                              ? 'Meter available'
+                              : 'Connect device to use meter',
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          if (!connected) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connect to use the meter.'),
+                              ),
+                            );
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Opening Meter (placeholder)'),
+                            ),
+                          );
+                        },
+                        child: const Text('Open Meter'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _rPotMinCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'R_pot_min (Ω)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab5(rPotMinOhm: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _rPotMaxCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'R_pot_max (Ω)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab5(rPotMaxOhm: v);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part B — Build circuit, use actual diagram lab5_circuit1, save waveforms at min and max, compare phase shift
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part B — Build Circuit and Save Waveforms (Min/Max)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Build the circuit per the diagram. Set the potentiometer to minimum resistance, save Vin_min and Vout_min.\n'
+                    'Then set the potentiometer to maximum resistance, save Vin_max and Vout_max.\n'
+                    'Comment on how the phase shift changes with the potentiometer resistance.',
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Diagram: lab5_circuit1.png
+                  Container(
+                    height: 240,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      child: Image.asset(
+                        'assets/images/labs/lab5_circuit1.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: app.lab5.circuitBuilt_5,
+                        onChanged: (v) => context.read<AppState>().updateLab5(
+                          circuitBuilt_5: v ?? false,
+                        ),
+                      ),
+                      const Text('I have built the circuit as shown'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.ssid_chart,
+                        color: connected ? Colors.green : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('Enable signal generator (same specs)'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Connect to the device to change outputs.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        if (!app.lab5.circuitBuilt_5) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Check the box after building first.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        // Example: sine 1 kHz, 1.0 Vpp, 0 V offset (same specs as before)
+                        context.read<AppState>().sendEnableSignalGeneratorSine(
+                          freqHz: 1000,
+                          amplitude_mVpp: 1000,
+                          offset_mV: 0,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Signal generator enabled (sine 1 kHz, 1.0 Vpp)',
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text('Enable signal generator'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+                  // Save Vin_min / Vout_min
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().setLab5VinMinWaveform(
+                          _dummyWave('Vin_min', 1.0, 0.0),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vin_min saved')),
+                        );
+                      },
+                      child: const Text('Save Vin_min'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().setLab5VoutMinWaveform(
+                          _dummyWave('Vout_min', 0.6, 0.2),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vout_min saved')),
+                        );
+                      },
+                      child: const Text('Save Vout_min'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+                  // Save Vin_max / Vout_max
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().setLab5VinMaxWaveform(
+                          _dummyWave('Vin_max', 1.0, 0.0),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vin_max saved')),
+                        );
+                      },
+                      child: const Text('Save Vin_max'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to capture waveforms.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().setLab5VoutMaxWaveform(
+                          _dummyWave('Vout_max', 0.8, 0.4),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Vout_max saved')),
+                        );
+                      },
+                      child: const Text('Save Vout_max'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+                  Builder(
+                    builder: (_) {
+                      final s = context.watch<AppState>().lab5;
+                      return Text(
+                        'Saved: Vin_min ${s.vinMinSaved ? '✓' : '—'} | Vout_min ${s.voutMinSaved ? '✓' : '—'} | '
+                        'Vin_max ${s.vinMaxSaved ? '✓' : '—'} | Vout_max ${s.voutMaxSaved ? '✓' : '—'}',
+                        style: const TextStyle(color: Colors.grey),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+                  // Compare waveforms and write about phase shift change
+                  TextField(
+                    controller: _notesPhaseCtrl,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText:
+                          'Notes: How does phase shift change with potentiometer resistance?',
+                    ),
+                    onChanged: (t) {
+                      context.read<AppState>().updateLab5(
+                        notesPhaseShift: t.trim().isEmpty ? null : t.trim(),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+                  // Quick access to open saved waveforms
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context
+                                .read<AppState>()
+                                .lab5VinMinWaveform;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vin_min'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context
+                                .read<AppState>()
+                                .lab5VoutMinWaveform;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vout_min'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context
+                                .read<AppState>()
+                                .lab5VinMaxWaveform;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vin_max'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context
+                                .read<AppState>()
+                                .lab5VoutMaxWaveform;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vout_max'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part C — Analyze Vin_max and Vout_max (time shift and phase shift)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part C — Analyze Vin_max and Vout_max',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Open Vin_max and Vout_max, measure the time shift (ms) and calculate the phase shift (degrees). Record your values.',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context
+                                .read<AppState>()
+                                .lab5VinMaxWaveform;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vin_max'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final w = context
+                                .read<AppState>()
+                                .lab5VoutMaxWaveform;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vout_max'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _timeShiftMaxCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Measured time shift (ms)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab5(timeShiftMsMax: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _phaseShiftMaxCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Calculated phase shift (degrees)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab5(
+                          phaseShiftDegMax: v,
+                        );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part D — Measure RMS voltages (source, potentiometer, capacitor)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part D — RMS Measurements',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Measure RMS voltages of the source, the potentiometer, and the capacitor.',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.speed,
+                        color: connected ? Colors.blue : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          connected
+                              ? 'Meter available'
+                              : 'Connect device to use meter',
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          if (!connected) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connect to use the meter.'),
+                              ),
+                            );
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Opening Meter (placeholder)'),
+                            ),
+                          );
+                        },
+                        child: const Text('Open Meter'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _vrmsSourceCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'V_RMS (source, V)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab5(vrmsSource: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _vrmsPotCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'V_RMS (potentiometer, V)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab5(vrmsPot: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _vrmsCapCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'V_RMS (capacitor, V)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab5(vrmsCap: v);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part E — KVL check and missing info
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part E — KVL Check',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Does KVL apply to your measurements from Part C? If not, what information might be missing?',
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Yes / No checkboxes (mutually exclusive)
+                  CheckboxListTile(
+                    title: const Text('Yes'),
+                    value: _kvlApplies == true,
+                    onChanged: (checked) {
+                      setState(() {
+                        // If user checks Yes, set true; if they uncheck, clear selection
+                        _kvlApplies = (checked ?? false) ? true : null;
+                      });
+                      // Persist when a definite choice is made; clear if null
+                      context.read<AppState>().updateLab5(
+                        kvlApplies: _kvlApplies,
+                      );
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    title: const Text('No'),
+                    value: _kvlApplies == false && _kvlApplies != null,
+                    onChanged: (checked) {
+                      setState(() {
+                        // If user checks No, set false; if they uncheck, clear selection
+                        _kvlApplies = (checked ?? false) ? false : null;
+                      });
+                      context.read<AppState>().updateLab5(
+                        kvlApplies: _kvlApplies,
+                      );
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _notesKVLCtrl,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText:
+                          'Notes: If it does not apply, what might be missing?',
+                    ),
+                    onChanged: (t) {
+                      context.read<AppState>().updateLab5(
+                        notesKVL: t.trim().isEmpty ? null : t.trim(),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Back to Labs'),
+              ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: _save,
+                child: const Text('Save Progress'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class Lab6Screen extends StatefulWidget {
   const Lab6Screen({super.key});
   @override
-  Widget build(BuildContext c) => _labStub(c, 'Lab 6: Transistors');
+  State<Lab6Screen> createState() => _Lab6ScreenState();
+}
+
+class _Lab6ScreenState extends State<Lab6Screen> {
+  // Controllers for Part E and F
+  final _fMinus3dBCtrl = TextEditingController();
+  final _rCtrl = TextEditingController();
+  final _cCtrl = TextEditingController();
+  final _notesHL = TextEditingController();
+  bool? _isHighPass;
+
+  // Row controllers for Vin/Vout (one per frequency)
+  late final List<TextEditingController> _vinCtrls;
+  late final List<TextEditingController> _voutCtrls;
+
+  @override
+  void initState() {
+    super.initState();
+    final rows = context.read<AppState>().lab6Rows;
+    _vinCtrls = List.generate(
+      rows.length,
+      (i) => TextEditingController(text: rows[i].vin_mV?.toString() ?? ''),
+    );
+    _voutCtrls = List.generate(
+      rows.length,
+      (i) => TextEditingController(text: rows[i].vout_mV?.toString() ?? ''),
+    );
+
+    final s = context.read<AppState>().lab6;
+    _fMinus3dBCtrl.text = s.fMinus3dBApproxHz?.toString() ?? '';
+    _rCtrl.text = s.R_Ohm?.toString() ?? '';
+    _cCtrl.text = s.C_uF?.toString() ?? '';
+    _notesHL.text = s.notesHighLow ?? '';
+    _isHighPass = s.isHighPass;
+  }
+
+  @override
+  void dispose() {
+    for (final c in _vinCtrls) c.dispose();
+    for (final c in _voutCtrls) c.dispose();
+    _fMinus3dBCtrl.dispose();
+    _rCtrl.dispose();
+    _cCtrl.dispose();
+    _notesHL.dispose();
+    super.dispose();
+  }
+
+  double? _parseDouble(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final connected = app.deviceConnected;
+    final rows = app.lab6Rows;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Lab 6: Frequency Response and Bode Plot'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          if (!connected) const ConnectionWarning(),
+
+          // Part A — Build circuit and apply input waveform
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part A — Build Circuit and Apply Input (f = 1 Hz)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Build the circuit per the diagram. Then apply the input waveform:\n'
+                    'f = 1 Hz, phase = 0°, offset = 0 V, amplitude = 2 V.',
+                  ),
+                  const SizedBox(height: 12),
+                  // Diagram (lab6_circuit1.png)
+                  Container(
+                    height: 240,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      child: Image.asset(
+                        'assets/images/labs/lab6_circuit1.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: app.lab6.circuitBuilt_6,
+                        onChanged: (v) => context
+                            .read<AppState>()
+                            .updateLab6Build(built: v ?? false),
+                      ),
+                      const Text('I have built the circuit as shown'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.ssid_chart,
+                        color: connected ? Colors.green : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Enable signal generator (f = 1 Hz, 2 V amplitude, 0° phase, 0 V offset)',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Connect to the device to change inputs.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        if (!app.lab6.circuitBuilt_6) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Check the box after building first.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        // NOTE: If “amplitude = 2 V” means 2 V peak-to-peak, pass 2000 mVpp; if 2 V peak, pass 4000 mVpp.
+                        context.read<AppState>().sendEnableSignalGeneratorSine(
+                          freqHz: 1,
+                          amplitude_mVpp: 2000, // adjust to 4000 if 2 V = peak
+                          offset_mV: 0,
+                          phase_mdeg: 0,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Signal generator enabled (1 Hz, 2 V amplitude, 0°, 0 V offset)',
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text('Enable input'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to change outputs.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().sendDisableOutputs();
+                      },
+                      child: const Text('Disable Outputs'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part B — Table row for 1 Hz (Vin RMS, Vout RMS, ratio)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part B — Measure RMS at 1 Hz',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Measure and record Vin (mV RMS) and Vout (mV RMS). The ratio Vout/Vin will be shown.',
+                  ),
+                  const SizedBox(height: 12),
+                  _lab6TableRow(
+                    context: context,
+                    index: 0,
+                    row: rows[0],
+                    vinCtrl: _vinCtrls[0],
+                    voutCtrl: _voutCtrls[0],
+                    showSetGenerator: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part C — Fill the rest of the table for all other frequencies
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part C — Fill the Table for All Frequencies',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Repeat the measurements for each frequency below and record Vin (mV RMS), Vout (mV RMS).',
+                  ),
+                  const SizedBox(height: 12),
+                  for (int i = 1; i < rows.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _lab6TableRow(
+                        context: context,
+                        index: i,
+                        row: rows[i],
+                        vinCtrl: _vinCtrls[i],
+                        voutCtrl: _voutCtrls[i],
+                        showSetGenerator: true,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part D — Explain how to draw a Bode plot
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Part D — Bode Plot',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Using the data from your table, create a Bode Plot of the magnitude response. \n'
+                    'Remember that the horizontal axis of the plot will be log(frequency), and the vertical axis will be decibels.\n'
+                    'Decibels (dB) can be calculated using dB = 20log(Vout/Vin)',
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part E — Record –3 dB frequency and compare to f0 = 1/(2πRC)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part E — –3 dB Frequency and Theoretical f0',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Enter the approximate –3 dB frequency from your Bode plot, and enter R (Ω) and C (µF) to compute the theoretical cutoff f0 = 1/(2πRC).',
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _fMinus3dBCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'f_–3dB (Hz)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab6Bode(
+                          fMinus3dBApproxHz: v,
+                        );
+                      setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _rCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'R (Ω)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab6Bode(R_Ohm: v);
+                      setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _cCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'C (µF)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab6Bode(C_uF: v);
+                      setState(() {});
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Builder(
+                    builder: (_) {
+                      final s = context.watch<AppState>().lab6;
+                      final fPlot = s.fMinus3dBApproxHz;
+                      final f0 = s.f0TheoryHz;
+                      final comp = (fPlot != null && f0 != null)
+                          ? 'Δ = ${(fPlot - f0).toStringAsFixed(2)} Hz (relative: ${((fPlot - f0) / f0 * 100).toStringAsFixed(1)} %)'
+                          : 'Enter R and C to see f0 and comparison.';
+                      return Text(
+                        'Theoretical f0 = ${f0 != null ? f0.toStringAsFixed(2) : '—'} Hz\n$comp',
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part F — High-pass or Low-pass?
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part F — High-pass or Low-pass?',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Select whether the circuit is high-pass or low-pass, and explain how you know (based on your data and plot).',
+                  ),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    title: const Text('High-pass'),
+                    value: _isHighPass == true,
+                    onChanged: (checked) {
+                      setState(
+                        () => _isHighPass = (checked ?? false) ? true : null,
+                      );
+                      context.read<AppState>().updateLab6HighLow(
+                        isHighPass: _isHighPass,
+                      );
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Low-pass'),
+                    value: _isHighPass == false && _isHighPass != null,
+                    onChanged: (checked) {
+                      setState(
+                        () => _isHighPass = (checked ?? false) ? false : null,
+                      );
+                      context.read<AppState>().updateLab6HighLow(
+                        isHighPass: _isHighPass,
+                      );
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _notesHL,
+                    maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Explanation'),
+                    onChanged: (t) {
+                      context.read<AppState>().updateLab6HighLow(
+                        notes: t.trim().isEmpty ? null : t.trim(),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Back to Labs'),
+              ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Lab 6 progress saved (values persist in memory)',
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Save Progress'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper: one table row (frequency, Vin/Vout inputs, ratio, set generator button)
+  Widget _lab6TableRow({
+    required BuildContext context,
+    required int index,
+    required Lab6Row row,
+    required TextEditingController vinCtrl,
+    required TextEditingController voutCtrl,
+    bool showSetGenerator = false,
+  }) {
+    final app = context.read<AppState>();
+    final connected = app.deviceConnected;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'f = ${row.fHz} Hz',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const Spacer(),
+            if (showSetGenerator)
+              OutlinedButton(
+                onPressed: () {
+                  if (!connected) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Connect to set generator.'),
+                      ),
+                    );
+                    return;
+                  }
+                  app.sendEnableSignalGeneratorSine(
+                    freqHz: row.fHz,
+                    // Keep same amplitude spec as Part A (adjust if your firmware expects peak vs p–p)
+                    amplitude_mVpp: 2000, // adjust to 4000 if 2 V = peak
+                    offset_mV: 0,
+                    phase_mdeg: 0,
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Generator set to ${row.fHz} Hz')),
+                  );
+                },
+                child: const Text('Set generator'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: vinCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: 'Vin (mV RMS)'),
+                onChanged: (t) {
+                  final v = _parseDouble(t);
+                  if (v != null) app.updateLab6Row(index: index, vin_mV: v);
+                  setState(() {});
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: voutCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: 'Vout (mV RMS)'),
+                onChanged: (t) {
+                  final v = _parseDouble(t);
+                  if (v != null) app.updateLab6Row(index: index, vout_mV: v);
+                  setState(() {});
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 100,
+              child: Text(
+                'Vout/Vin: ${row.ratio != null ? row.ratio!.toStringAsFixed(3) : '—'}',
+                textAlign: TextAlign.right,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class Lab7Screen extends StatelessWidget {
