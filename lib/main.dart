@@ -194,6 +194,55 @@ class Lab6Progress {
   String? notesHighLow;
 }
 
+class Lab7Progress {
+  // Part A: components and build confirmation
+  double? r1Ohm;
+  double? r2Ohm;
+  double? r3Ohm;
+  double? c_uF;
+  bool circuitBuilt_7 = false;
+
+  // Part B: sine analysis (amplitudes and phase)
+  bool vinSineSaved = false;
+  bool voutSineSaved = false;
+  double? vinAmpSine_V;
+  double? voutAmpSine_V;
+  double? phaseDegSine;
+
+  // Part C: square analysis
+  bool vinSquareSaved = false;
+  bool voutSquareSaved = false;
+  double? vinAmpSquare_V;
+  double? voutAmpSquare_V;
+  double? phaseDegSquare;
+
+  // Part D: triangle analysis
+  bool vinTriSaved = false;
+  bool voutTriSaved = false;
+  double? vinAmpTri_V;
+  double? voutAmpTri_V;
+  double? phaseDegTri;
+}
+
+class Lab8Progress {
+  bool builtAND = false; // Part A
+  bool builtOR = false; // Part B
+  bool builtComplex = false; // Part C
+
+  // Measured outputs (Volts) for truth tables
+  // AND 7408: (A,B) = (0,0), (0,5), (5,0), (5,5)
+  final List<double?> andVout = List<double?>.filled(4, null);
+
+  // OR 7432: same input combos
+  final List<double?> orVout = List<double?>.filled(4, null);
+
+  // Complex 3-input: (A,B,C) eight combos as in your screenshot
+  final List<double?> complexVout = List<double?>.filled(8, null);
+
+  // Notes (comparison with prelab/simulations)
+  String? notesCompare;
+}
+
 class AppState extends ChangeNotifier {
   AppMode mode = AppMode.none;
   bool deviceConnected = false;
@@ -264,6 +313,25 @@ class AppState extends ChangeNotifier {
     // TODO (BLE): Build and send SetOutputs or a dedicated command to enable the signal generator.
     // Example intent: waveform=sine, freq=freqHz, amplitude=amplitude_mVpp, offset=offset_mV, phase=phase_mdeg.
     // On Ack OK, you could set a local flag if you want to reflect generator state in the UI.
+  }
+
+  Future<void> sendEnableSignalGeneratorSquare({
+    required int freqHz,
+    required int amplitude_mVpp,
+    int offset_mV = 0,
+    int phase_mdeg = 0,
+    int duty_per_mille = 500, // 50% by default
+  }) async {
+    // TODO: send waveform command (square)
+  }
+
+  Future<void> sendEnableSignalGeneratorTriangle({
+    required int freqHz,
+    required int amplitude_mVpp,
+    int offset_mV = 0,
+    int phase_mdeg = 0,
+  }) async {
+    // TODO: send waveform command (triangle)
   }
 
   final lab1 = Lab1Progress();
@@ -633,6 +701,142 @@ class AppState extends ChangeNotifier {
   void updateLab6HighLow({bool? isHighPass, String? notes}) {
     if (isHighPass != null) lab6.isHighPass = isHighPass;
     if (notes != null) lab6.notesHighLow = notes;
+    notifyListeners();
+  }
+
+  // Lab 7 progress
+  final lab7 = Lab7Progress();
+
+  // Saved waveforms for Lab 7
+  WaveformData? lab7VinSine;
+  WaveformData? lab7VoutSine;
+  WaveformData? lab7VinSquare;
+  WaveformData? lab7VoutSquare;
+  WaveformData? lab7VinTri;
+  WaveformData? lab7VoutTri;
+
+  void setLab7VinSine(WaveformData w) {
+    lab7VinSine = w;
+    lab7.vinSineSaved = true;
+    notifyListeners();
+  }
+
+  void setLab7VoutSine(WaveformData w) {
+    lab7VoutSine = w;
+    lab7.voutSineSaved = true;
+    notifyListeners();
+  }
+
+  void setLab7VinSquare(WaveformData w) {
+    lab7VinSquare = w;
+    lab7.vinSquareSaved = true;
+    notifyListeners();
+  }
+
+  void setLab7VoutSquare(WaveformData w) {
+    lab7VoutSquare = w;
+    lab7.voutSquareSaved = true;
+    notifyListeners();
+  }
+
+  void setLab7VinTri(WaveformData w) {
+    lab7VinTri = w;
+    lab7.vinTriSaved = true;
+    notifyListeners();
+  }
+
+  void setLab7VoutTri(WaveformData w) {
+    lab7VoutTri = w;
+    lab7.voutTriSaved = true;
+    notifyListeners();
+  }
+
+  void updateLab7Components({
+    double? r1Ohm,
+    double? r2Ohm,
+    double? r3Ohm,
+    double? c_uF,
+  }) {
+    if (r1Ohm != null) lab7.r1Ohm = r1Ohm;
+    if (r2Ohm != null) lab7.r2Ohm = r2Ohm;
+    if (r3Ohm != null) lab7.r3Ohm = r3Ohm;
+    if (c_uF != null) lab7.c_uF = c_uF;
+    notifyListeners();
+  }
+
+  void setLab7Built(bool built) {
+    lab7.circuitBuilt_7 = built;
+    notifyListeners();
+  }
+
+  void updateLab7Sine({double? vinAmp_V, double? voutAmp_V, double? phaseDeg}) {
+    if (vinAmp_V != null) lab7.vinAmpSine_V = vinAmp_V;
+    if (voutAmp_V != null) lab7.voutAmpSine_V = voutAmp_V;
+    if (phaseDeg != null) lab7.phaseDegSine = phaseDeg;
+    notifyListeners();
+  }
+
+  void updateLab7Square({
+    double? vinAmp_V,
+    double? voutAmp_V,
+    double? phaseDeg,
+  }) {
+    if (vinAmp_V != null) lab7.vinAmpSquare_V = vinAmp_V;
+    if (voutAmp_V != null) lab7.voutAmpSquare_V = voutAmp_V;
+    if (phaseDeg != null) lab7.phaseDegSquare = phaseDeg;
+    notifyListeners();
+  }
+
+  void updateLab7Tri({double? vinAmp_V, double? voutAmp_V, double? phaseDeg}) {
+    if (vinAmp_V != null) lab7.vinAmpTri_V = vinAmp_V;
+    if (voutAmp_V != null) lab7.voutAmpTri_V = voutAmp_V;
+    if (phaseDeg != null) lab7.phaseDegTri = phaseDeg;
+    notifyListeners();
+  }
+
+  // Lab 8 progress
+  final lab8 = Lab8Progress();
+
+  // Build-state setters
+  void setLab8BuiltAND(bool v) {
+    lab8.builtAND = v;
+    notifyListeners();
+  }
+
+  void setLab8BuiltOR(bool v) {
+    lab8.builtOR = v;
+    notifyListeners();
+  }
+
+  void setLab8BuiltComplex(bool v) {
+    lab8.builtComplex = v;
+    notifyListeners();
+  }
+
+  // Table updates
+  void updateLab8AndRow(int index, {double? voutV}) {
+    if (index >= 0 && index < lab8.andVout.length && voutV != null) {
+      lab8.andVout[index] = voutV;
+      notifyListeners();
+    }
+  }
+
+  void updateLab8OrRow(int index, {double? voutV}) {
+    if (index >= 0 && index < lab8.orVout.length && voutV != null) {
+      lab8.orVout[index] = voutV;
+      notifyListeners();
+    }
+  }
+
+  void updateLab8ComplexRow(int index, {double? voutV}) {
+    if (index >= 0 && index < lab8.complexVout.length && voutV != null) {
+      lab8.complexVout[index] = voutV;
+      notifyListeners();
+    }
+  }
+
+  void updateLab8Notes(String? notes) {
+    lab8.notesCompare = notes;
     notifyListeners();
   }
 }
@@ -5722,16 +5926,1370 @@ class _Lab6ScreenState extends State<Lab6Screen> {
   }
 }
 
-class Lab7Screen extends StatelessWidget {
+class Lab7Screen extends StatefulWidget {
   const Lab7Screen({super.key});
   @override
-  Widget build(BuildContext c) => _labStub(c, 'Lab 7: Op-Amps');
+  State<Lab7Screen> createState() => _Lab7ScreenState();
 }
 
-class Lab8Screen extends StatelessWidget {
+class _Lab7ScreenState extends State<Lab7Screen> {
+  // Part A controllers
+  final _r1Ctrl = TextEditingController();
+  final _r2Ctrl = TextEditingController();
+  final _r3Ctrl = TextEditingController();
+  final _cCtrl = TextEditingController();
+
+  // Part B (sine) controllers
+  final _vinAmpSineCtrl = TextEditingController();
+  final _voutAmpSineCtrl = TextEditingController();
+  final _phaseSineCtrl = TextEditingController();
+
+  // Part C (square) controllers
+  final _vinAmpSquareCtrl = TextEditingController();
+  final _voutAmpSquareCtrl = TextEditingController();
+  final _phaseSquareCtrl = TextEditingController();
+
+  // Part D (triangle) controllers
+  final _vinAmpTriCtrl = TextEditingController();
+  final _voutAmpTriCtrl = TextEditingController();
+  final _phaseTriCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final s = context.read<AppState>().lab7;
+    _r1Ctrl.text = s.r1Ohm?.toString() ?? '';
+    _r2Ctrl.text = s.r2Ohm?.toString() ?? '';
+    _r3Ctrl.text = s.r3Ohm?.toString() ?? '';
+    _cCtrl.text = s.c_uF?.toString() ?? '';
+
+    _vinAmpSineCtrl.text = s.vinAmpSine_V?.toString() ?? '';
+    _voutAmpSineCtrl.text = s.voutAmpSine_V?.toString() ?? '';
+    _phaseSineCtrl.text = s.phaseDegSine?.toString() ?? '';
+
+    _vinAmpSquareCtrl.text = s.vinAmpSquare_V?.toString() ?? '';
+    _voutAmpSquareCtrl.text = s.voutAmpSquare_V?.toString() ?? '';
+    _phaseSquareCtrl.text = s.phaseDegSquare?.toString() ?? '';
+
+    _vinAmpTriCtrl.text = s.vinAmpTri_V?.toString() ?? '';
+    _voutAmpTriCtrl.text = s.voutAmpTri_V?.toString() ?? '';
+    _phaseTriCtrl.text = s.phaseDegTri?.toString() ?? '';
+  }
+
+  @override
+  void dispose() {
+    _r1Ctrl.dispose();
+    _r2Ctrl.dispose();
+    _r3Ctrl.dispose();
+    _cCtrl.dispose();
+    _vinAmpSineCtrl.dispose();
+    _voutAmpSineCtrl.dispose();
+    _phaseSineCtrl.dispose();
+    _vinAmpSquareCtrl.dispose();
+    _voutAmpSquareCtrl.dispose();
+    _phaseSquareCtrl.dispose();
+    _vinAmpTriCtrl.dispose();
+    _voutAmpTriCtrl.dispose();
+    _phaseTriCtrl.dispose();
+    super.dispose();
+  }
+
+  double? _parseDouble(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
+  WaveformData _dummyWave(String label, double amp, double phase) {
+    final n = 1024, sr = 20000;
+    final samples = List<double>.generate(
+      n,
+      (i) => amp * math.sin(2 * math.pi * i / 64 + phase),
+    );
+    return WaveformData(
+      label: label,
+      samples: samples,
+      sampleRateHz: sr.toDouble(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final connected = app.deviceConnected;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Lab 7: Waveforms with Op-Amp'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          if (!connected) const ConnectionWarning(),
+
+          // Part A — Measure components and build circuit (with diagram)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part A — Measure Components and Build Circuit',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Measure R1, R2, R3 (Ω) and C (µF), then build the circuit per the diagram. \n'
+                    'Note: The 5k resistor R2 should be made with two 10k resistors in parallel.',
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 240,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      child: Image.asset(
+                        'assets/images/labs/lab7_circuit1.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.speed,
+                        color: connected ? Colors.blue : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          connected
+                              ? 'Meter available'
+                              : 'Connect device to use meter',
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          if (!connected) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connect to use meter.'),
+                              ),
+                            );
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Opening Meter (placeholder)'),
+                            ),
+                          );
+                        },
+                        child: const Text('Open Meter'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _r1Ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'R1 (Ω)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Components(r1Ohm: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _r2Ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'R2 (Ω)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Components(r2Ohm: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _r3Ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'R3 (Ω)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Components(r3Ohm: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _cCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(labelText: 'C (µF)'),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Components(c_uF: v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: app.lab7.circuitBuilt_7,
+                        onChanged: (v) =>
+                            context.read<AppState>().setLab7Built(v ?? false),
+                      ),
+                      const Text('I have built the circuit as shown'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part B — Sine: enable rails + generator, save Vin/Vout, measure amplitudes and phase
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part B — Sine Wave (f = 30 Hz, 0°, 0 V offset, 0.5 V amplitude)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Enable op-amp rails (+/− 5 V), set the generator to sine. Save Vin and Vout snapshots. Measure amplitudes and phase between waves.',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.power,
+                        color: connected ? Colors.green : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('Enable op-amp rails (+/− 5 V)'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to change outputs.'),
+                            ),
+                          );
+                          return;
+                        }
+                        if (!app.lab7.circuitBuilt_7) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Check the box after building first.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        context
+                            .read<AppState>()
+                            .sendEnableOpAmpRailsPlusMinus5();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Op-amp rails enabled')),
+                        );
+                      },
+                      child: const Text('Enable rails'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.ssid_chart,
+                        color: connected ? Colors.green : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Set generator: sine, 30 Hz, 0°, 0 V offset, 0.5 V amplitude',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to set generator.'),
+                            ),
+                          );
+                          return;
+                        }
+                        // NOTE: amplitude interpretation:
+                        // If 0.5 V means peak-to-peak, pass 500 mVpp; if 0.5 V peak, pass 1000 mVpp.
+                        context.read<AppState>().sendEnableSignalGeneratorSine(
+                          freqHz: 30,
+                          amplitude_mVpp: 500,
+                          offset_mV: 0,
+                          phase_mdeg: 0,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Generator set: sine 30 Hz, 0.5 V'),
+                          ),
+                        );
+                      },
+                      child: const Text('Enable sine generator'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (!connected) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Connect to capture waveforms.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            context.read<AppState>().setLab7VinSine(
+                              _dummyWave('Vin (sine)', 0.25, 0.0),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Vin (sine) saved')),
+                            );
+                          },
+                          child: const Text('Save Vin (sine)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (!connected) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Connect to capture waveforms.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            context.read<AppState>().setLab7VoutSine(
+                              _dummyWave('Vout (sine)', 0.20, 0.3),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Vout (sine) saved'),
+                              ),
+                            );
+                          },
+                          child: const Text('Save Vout (sine)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab7VinSine;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vin (sine)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab7VoutSine;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vout (sine)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _vinAmpSineCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Measured Vin amplitude (V)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Sine(vinAmp_V: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _voutAmpSineCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Measured Vout amplitude (V)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Sine(voutAmp_V: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _phaseSineCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Phase shift (degrees)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Sine(phaseDeg: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to change outputs.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().sendDisableOutputs();
+                      },
+                      child: const Text('Disable Outputs'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part C — Square wave
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part C — Square Wave (f = 30 Hz, 0°, 0 V offset, 0.5 V amplitude)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Set the generator to square. Save Vin and Vout snapshots. Measure amplitudes and phase shift.',
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to set generator.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context
+                            .read<AppState>()
+                            .sendEnableSignalGeneratorSquare(
+                              freqHz: 30,
+                              amplitude_mVpp: 500,
+                              offset_mV: 0,
+                              phase_mdeg: 0,
+                              duty_per_mille: 500,
+                            );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Generator set: square 30 Hz, 0.5 V'),
+                          ),
+                        );
+                      },
+                      child: const Text('Enable square generator'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (!connected) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Connect to capture waveforms.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            context.read<AppState>().setLab7VinSquare(
+                              _dummyWave('Vin (square)', 0.25, 0.0),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Vin (square) saved'),
+                              ),
+                            );
+                          },
+                          child: const Text('Save Vin (square)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (!connected) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Connect to capture waveforms.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            context.read<AppState>().setLab7VoutSquare(
+                              _dummyWave('Vout (square)', 0.20, 0.3),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Vout (square) saved'),
+                              ),
+                            );
+                          },
+                          child: const Text('Save Vout (square)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab7VinSquare;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vin (square)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab7VoutSquare;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vout (square)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _vinAmpSquareCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Measured Vin amplitude (V)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Square(vinAmp_V: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _voutAmpSquareCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Measured Vout amplitude (V)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Square(voutAmp_V: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _phaseSquareCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Phase shift (degrees)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Square(phaseDeg: v);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part D — Triangle wave
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part D — Triangle Wave (f = 30 Hz, 0°, 0 V offset, 0.5 V amplitude)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Set the generator to triangle. Save Vin and Vout snapshots. Measure amplitudes and phase shift.',
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to set generator.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context
+                            .read<AppState>()
+                            .sendEnableSignalGeneratorTriangle(
+                              freqHz: 30,
+                              amplitude_mVpp: 500,
+                              offset_mV: 0,
+                              phase_mdeg: 0,
+                            );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Generator set: triangle 30 Hz, 0.5 V',
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text('Enable triangle generator'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (!connected) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Connect to capture waveforms.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            context.read<AppState>().setLab7VinTri(
+                              _dummyWave('Vin (triangle)', 0.25, 0.0),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Vin (triangle) saved'),
+                              ),
+                            );
+                          },
+                          child: const Text('Save Vin (triangle)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (!connected) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Connect to capture waveforms.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+                            context.read<AppState>().setLab7VoutTri(
+                              _dummyWave('Vout (triangle)', 0.20, 0.3),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Vout (triangle) saved'),
+                              ),
+                            );
+                          },
+                          child: const Text('Save Vout (triangle)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab7VinTri;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vin (triangle)'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            final w = context.read<AppState>().lab7VoutTri;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => Lab3WaveformViewer(data: w),
+                              ),
+                            );
+                          },
+                          child: const Text('Open Vout (triangle)'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _vinAmpTriCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Measured Vin amplitude (V)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Tri(vinAmp_V: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _voutAmpTriCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Measured Vout amplitude (V)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Tri(voutAmp_V: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _phaseTriCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Phase shift (degrees)',
+                    ),
+                    onChanged: (t) {
+                      final v = _parseDouble(t);
+                      if (v != null)
+                        context.read<AppState>().updateLab7Tri(phaseDeg: v);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        if (!connected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Connect to change outputs.'),
+                            ),
+                          );
+                          return;
+                        }
+                        context.read<AppState>().sendDisableOutputs();
+                      },
+                      child: const Text('Disable Outputs'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Back to Labs'),
+              ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Lab 7 progress saved (values persist in memory)',
+                    ),
+                  ),
+                ),
+                child: const Text('Save Progress'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class Lab8Screen extends StatefulWidget {
   const Lab8Screen({super.key});
   @override
-  Widget build(BuildContext c) => _labStub(c, 'Lab 8: Filters');
+  State<Lab8Screen> createState() => _Lab8ScreenState();
+}
+
+// State class
+class _Lab8ScreenState extends State<Lab8Screen> {
+  // AND table (4 rows)
+  final List<TextEditingController> _andVoutCtrls =
+      List<TextEditingController>.generate(4, (i) => TextEditingController());
+
+  final List<TextEditingController> _orVoutCtrls =
+      List<TextEditingController>.generate(4, (i) => TextEditingController());
+
+  final List<TextEditingController> _complexVoutCtrls =
+      List<TextEditingController>.generate(8, (i) => TextEditingController());
+
+  final TextEditingController _notesCtrl = TextEditingController();
+
+  // Labels for rows
+  final List<String> _andLabels = const [
+    'A = 0 V, B = 0 V',
+    'A = 0 V, B = 5 V',
+    'A = 5 V, B = 0 V',
+    'A = 5 V, B = 5 V',
+  ];
+
+  final List<String> _orLabels = const [
+    'A = 0 V, B = 0 V',
+    'A = 0 V, B = 5 V',
+    'A = 5 V, B = 0 V',
+    'A = 5 V, B = 5 V',
+  ];
+
+  final List<String> _complexLabels = const [
+    'A = 0 V, B = 0 V, C = 0 V',
+    'A = 0 V, B = 0 V, C = 5 V',
+    'A = 0 V, B = 5 V, C = 0 V',
+    'A = 0 V, B = 5 V, C = 5 V',
+    'A = 5 V, B = 0 V, C = 0 V',
+    'A = 5 V, B = 0 V, C = 5 V',
+    'A = 5 V, B = 5 V, C = 0 V',
+    'A = 5 V, B = 5 V, C = 5 V',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final s = context.read<AppState>().lab8;
+    for (int i = 0; i < 4; i++) {
+      _andVoutCtrls[i].text = s.andVout[i]?.toString() ?? '';
+      _orVoutCtrls[i].text = s.orVout[i]?.toString() ?? '';
+    }
+    for (int i = 0; i < 8; i++) {
+      _complexVoutCtrls[i].text = s.complexVout[i]?.toString() ?? '';
+    }
+    _notesCtrl.text = s.notesCompare ?? '';
+  }
+
+  @override
+  void dispose() {
+    for (final c in _andVoutCtrls) c.dispose();
+    for (final c in _orVoutCtrls) c.dispose();
+    for (final c in _complexVoutCtrls) c.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
+
+  double? _parseDouble(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final connected = app.deviceConnected;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Lab 8: Logic Gates and Truth Tables'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          if (!connected) const ConnectionWarning(),
+
+          // Part A — AND 7408
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part A — AND Gate (7408): Pin Diagram and Truth Table',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Use 5 V as logic 1 and 0 V as logic 0. Test inputs A/B and record the measured Vout for each combination.',
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 240,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      child: Image.asset(
+                        'assets/images/labs/lab8_circuit1.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: app.lab8.builtAND,
+                        onChanged: (v) => context
+                            .read<AppState>()
+                            .setLab8BuiltAND(v ?? false),
+                      ),
+                      const Text(
+                        'I have wired the 7408 AND gate per the diagram',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.speed,
+                        color: connected ? Colors.blue : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          connected
+                              ? 'Meter available'
+                              : 'Connect device to use meter',
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          if (!connected) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connect to use meter.'),
+                              ),
+                            );
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Opening Meter (placeholder)'),
+                            ),
+                          );
+                        },
+                        child: const Text('Open Meter'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  for (int i = 0; i < _andLabels.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _truthRow(
+                        label: _andLabels[i],
+                        controller: _andVoutCtrls[i],
+                        onChanged: (text) {
+                          final v = _parseDouble(text);
+                          if (v != null) {
+                            context.read<AppState>().updateLab8AndRow(
+                              i,
+                              voutV: v,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part B — OR 7432
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part B — OR Gate (7432): Pin Diagram and Truth Table',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Use 5 V as logic 1 and 0 V as logic 0. Test inputs A/B and record the measured Vout for each combination.',
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 240,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      child: Image.asset(
+                        'assets/images/labs/lab8_circuit2.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: app.lab8.builtOR,
+                        onChanged: (v) =>
+                            context.read<AppState>().setLab8BuiltOR(v ?? false),
+                      ),
+                      const Text(
+                        'I have wired the 7432 OR gate per the diagram',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.speed,
+                        color: connected ? Colors.blue : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          connected
+                              ? 'Meter available'
+                              : 'Connect device to use meter',
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          if (!connected) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connect to use meter.'),
+                              ),
+                            );
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Opening Meter (placeholder)'),
+                            ),
+                          );
+                        },
+                        child: const Text('Open Meter'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  for (int i = 0; i < _orLabels.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _truthRow(
+                        label: _orLabels[i],
+                        controller: _orVoutCtrls[i],
+                        onChanged: (text) {
+                          final v = _parseDouble(text);
+                          if (v != null) {
+                            context.read<AppState>().updateLab8OrRow(
+                              i,
+                              voutV: v,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part C — Complex circuit lab8_circuit3
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part C — Build Complex Circuit (AND/OR chips)',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Build the circuit shown (lab8_circuit3). Use as many 7408/7432 chips as needed.',
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 240,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      child: Image.asset(
+                        'assets/images/labs/lab8_circuit3.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: app.lab8.builtComplex,
+                        onChanged: (v) => context
+                            .read<AppState>()
+                            .setLab8BuiltComplex(v ?? false),
+                      ),
+                      const Text('I have built the complex circuit'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Part D — 3-input truth table and comparison notes
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Part D — 3-Input Truth Table and Comparison',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Use 5 V as logic 1 and 0 V as logic 0. For each (A,B,C) combination below, record measured Vout (V). '
+                    'Then compare with prelab and simulations.',
+                  ),
+                  const SizedBox(height: 12),
+                  for (int i = 0; i < _complexLabels.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _truthRow(
+                        label: _complexLabels[i],
+                        controller: _complexVoutCtrls[i],
+                        onChanged: (text) {
+                          final v = _parseDouble(text);
+                          if (v != null) {
+                            context.read<AppState>().updateLab8ComplexRow(
+                              i,
+                              voutV: v,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _notesCtrl,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Notes: Compare with prelab and simulations',
+                    ),
+                    onChanged: (t) {
+                      context.read<AppState>().updateLab8Notes(
+                        t.trim().isEmpty ? null : t.trim(),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Back to Labs'),
+              ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Lab 8 progress saved (values persist in memory)',
+                    ),
+                  ),
+                ),
+                child: const Text('Save Progress'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Simple row widget for "Label — Vout (V)"
+  Widget _truthRow({
+    required String label,
+    required TextEditingController controller,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Row(
+      children: [
+        Expanded(child: Text(label)),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 140,
+          child: TextField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'Vout (V)'),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 Widget _labStub(BuildContext context, String title) {
