@@ -6851,7 +6851,6 @@ class Lab8Screen extends StatefulWidget {
   State<Lab8Screen> createState() => _Lab8ScreenState();
 }
 
-// State class
 class _Lab8ScreenState extends State<Lab8Screen> {
   // AND table (4 rows)
   final List<TextEditingController> _andVoutCtrls =
