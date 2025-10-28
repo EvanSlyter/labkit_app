@@ -9,6 +9,8 @@ enum AppMode { none, free, lab }
 
 enum ToolRequirement { meter, scope }
 
+enum MeterMode { voltage, resistance, capacitance, inductance }
+
 class WaveformData {
   final String label; // e.g., 'Vin' or 'Vout'
   final List<double> samples; // normalized units (e.g., volts)
@@ -332,6 +334,49 @@ class AppState extends ChangeNotifier {
     int phase_mdeg = 0,
   }) async {
     // TODO: send waveform command (triangle)
+  }
+
+  // Meter state
+  MeterMode meterMode = MeterMode.voltage; // default mode
+  bool meterEnabled = false; // true when the device is sending data
+  double? meterReading; // latest reading in SI base units (V, Ω, F, H)
+  DateTime? meterReadingAt; // when it was updated (optional)
+
+  // Set mode (and configure device)
+  void setMeterMode(MeterMode m) {
+    meterMode = m;
+    notifyListeners();
+    // Optional: auto-enable and reconfigure meter on the device
+    sendMeterConfigure(m);
+  }
+
+  // Enable/disable meter locally (you can call this on BLE connect/disconnect)
+  void setMeterEnabled(bool enabled) {
+    meterEnabled = enabled;
+    if (!enabled) meterReading = null;
+    notifyListeners();
+  }
+
+  // Called by your BLE layer when a new reading arrives (in base SI units)
+  void updateMeterReading(double value) {
+    meterReading = value;
+    meterReadingAt = DateTime.now();
+    notifyListeners();
+  }
+
+  // BLE stubs — wire these later
+  Future<void> sendMeterConfigure(MeterMode m) async {
+    // TODO: send a command over BLE (e.g., SetMeterMode + Start)
+    // For now, just mark enabled so the UI shows "waiting".
+    meterEnabled = true;
+    notifyListeners();
+  }
+
+  Future<void> sendMeterStop() async {
+    // TODO: stop meter on the device
+    meterEnabled = false;
+    meterReading = null;
+    notifyListeners();
   }
 
   final lab1 = Lab1Progress();
@@ -854,6 +899,7 @@ class LabKitApp extends StatelessWidget {
           useMaterial3: true,
         ),
         home: const Root(),
+        routes: {'/meter': (context) => const MeterScreen()},
       ),
     );
   }
@@ -975,35 +1021,227 @@ class ModeSelectScreen extends StatelessWidget {
   }
 }
 
-class MeterScreen extends StatelessWidget {
+class MeterScreen extends StatefulWidget {
   const MeterScreen({super.key});
+  @override
+  State<MeterScreen> createState() => _MeterScreenState();
+}
 
-  Widget _metricCard(String title, String value) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(value, style: const TextStyle(fontSize: 18)),
-          ],
-        ),
+class _MeterScreenState extends State<MeterScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Optional: ensure the meter is enabled and configured on first open
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final app = context.read<AppState>();
+      if (!app.meterEnabled) {
+        app.sendMeterConfigure(app.meterMode); // starts "waiting" state
+      }
+    });
+  }
+
+  // Thresholds for “significant” readings (tune as needed)
+  bool _isSignificant(AppState app) {
+    final v = app.meterReading;
+    if (v == null) return false;
+    final a = v.abs();
+    switch (app.meterMode) {
+      case MeterMode.voltage:
+        return a >= 1e-3; // ≥ 1 mV
+      case MeterMode.resistance:
+        return a >= 0.5; // ≥ 0.5 Ω
+      case MeterMode.capacitance:
+        return a >= 1e-9; // ≥ 1 nF
+      case MeterMode.inductance:
+        return a >= 1e-6; // ≥ 1 µH
+    }
+  }
+
+  // Format numbers with SI prefixes and units
+  String _formatReading(AppState app) {
+    final value = app.meterReading ?? 0.0;
+    final unit = switch (app.meterMode) {
+      MeterMode.voltage => 'V',
+      MeterMode.resistance => 'Ω',
+      MeterMode.capacitance => 'F',
+      MeterMode.inductance => 'H',
+    };
+    return _formatSI(value, unit);
+  }
+
+  String _formatSI(double x, String unit) {
+    final ax = x.abs();
+    String prefix;
+    double scaled;
+    if (ax >= 1e6) {
+      prefix = 'M';
+      scaled = x / 1e6;
+    } else if (ax >= 1e3) {
+      prefix = 'k';
+      scaled = x / 1e3;
+    } else if (ax >= 1.0) {
+      prefix = '';
+      scaled = x;
+    } else if (ax >= 1e-3) {
+      prefix = 'm';
+      scaled = x * 1e3;
+    } else if (ax >= 1e-6) {
+      prefix = 'µ';
+      scaled = x * 1e6;
+    } else if (ax >= 1e-9) {
+      prefix = 'n';
+      scaled = x * 1e9;
+    } else {
+      prefix = 'p';
+      scaled = x * 1e12;
+    }
+    // Choose decimals based on magnitude
+    final str = (scaled.abs() >= 100)
+        ? scaled.toStringAsFixed(0)
+        : (scaled.abs() >= 10)
+        ? scaled.toStringAsFixed(1)
+        : scaled.toStringAsFixed(3);
+    return '$str $prefix$unit';
+  }
+
+  // Mode selector chip
+  Widget _modeChip({
+    required AppState app,
+    required MeterMode mode,
+    required String label,
+    required IconData icon,
+  }) {
+    final selected = app.meterMode == mode;
+    return ChoiceChip(
+      selected: selected,
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [Icon(icon, size: 16), const SizedBox(width: 6), Text(label)],
       ),
+      onSelected: (v) {
+        if (v) app.setMeterMode(mode);
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: [
-        _metricCard('DC', '1.23 V'),
-        _metricCard('RMS', '0.87 V'),
-        _metricCard('Frequency', '1000 Hz'),
-        _metricCard('Peak-to-Peak', '2.00 V'),
-      ],
+    final app = context.watch<AppState>();
+    final connected = app.deviceConnected;
+
+    String headline;
+    String subline = '';
+    if (!app.meterEnabled) {
+      headline = 'Meter off';
+      if (!connected) subline = 'Connect to the device to take measurements.';
+    } else if (!_isSignificant(app)) {
+      headline = 'Meter on: waiting for stable reading…';
+      if (!connected)
+        subline = 'Note: not connected — showing mock/wait state.';
+    } else {
+      headline = _formatReading(app);
+      final t = app.meterReadingAt;
+      if (t != null) {
+        subline = 'Updated ${TimeOfDay.fromDateTime(t).format(context)}';
+      }
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Meter'),
+        actions: [
+          if (app.meterEnabled)
+            TextButton(
+              onPressed: () => app.sendMeterStop(),
+              child: const Text('Stop', style: TextStyle(color: Colors.white)),
+            )
+          else
+            TextButton(
+              onPressed: () => app.sendMeterConfigure(app.meterMode),
+              child: const Text('Start', style: TextStyle(color: Colors.white)),
+            ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          if (!connected) const ConnectionWarning(),
+
+          // Mode selector
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _modeChip(
+                    app: app,
+                    mode: MeterMode.voltage,
+                    label: 'Voltage',
+                    icon: Icons.bolt,
+                  ),
+                  _modeChip(
+                    app: app,
+                    mode: MeterMode.resistance,
+                    label: 'Resistance',
+                    icon: Icons.speed,
+                  ),
+                  _modeChip(
+                    app: app,
+                    mode: MeterMode.capacitance,
+                    label: 'Capacitance',
+                    icon: Icons.sensors,
+                  ),
+                  _modeChip(
+                    app: app,
+                    mode: MeterMode.inductance,
+                    label: 'Inductance',
+                    icon: Icons.auto_graph,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Big reading display
+          Card(
+            child: Container(
+              height: 160,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    headline,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: app.meterEnabled && _isSignificant(app)
+                          ? 44
+                          : 20,
+                      fontWeight: app.meterEnabled && _isSignificant(app)
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                    ),
+                  ),
+                  if (subline.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(subline, style: const TextStyle(color: Colors.grey)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+
+          // Small hint line
+          const SizedBox(height: 8),
+          const Text(
+            'Tip: Select a measurement mode first. The display updates automatically when data arrives.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1083,6 +1321,57 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
+class Lab4MenuScreen extends StatelessWidget {
+  const Lab4MenuScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Lab 4: Select section'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.science),
+              title: const Text(
+                'Lab 4.1 — RC response with different capacitors',
+              ),
+
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const Lab4_1Screen()),
+                );
+              },
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.science_outlined),
+              title: const Text('Lab 4.2 — RL response with inductors'),
+
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const Lab4_2Screen()),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 /* ==========================
 Lab Mode (9 labs, gated)
 ========================== */
@@ -1146,8 +1435,7 @@ class LabListScreen extends StatelessWidget {
       'Lab 1: Ohm’s Law and Kirchoff’s Laws',
       'Lab 2: Node Voltages and Equivalent Circuits',
       'Lab 3: Intro to Op Amps',
-      'Lab 4.1: First Order RC and RL Transients',
-      'Lab 4.2: First Order RC and RL Transients',
+      'Lab 4: First Order RC and RL Transients',
       'Lab 5: Intro to AC Signals',
       'Lab 6: Frequency Response',
       'Lab 7: Op Amp Integrator and Active Filter',
@@ -1180,16 +1468,14 @@ class LabListScreen extends StatelessWidget {
       case 3:
         return const Lab3Screen();
       case 4:
-        return const Lab4_1Screen();
+        return const Lab4MenuScreen();
       case 5:
-        return const Lab4_2Screen();
-      case 6:
         return const Lab5Screen();
-      case 7:
+      case 6:
         return const Lab6Screen();
-      case 8:
+      case 7:
         return const Lab7Screen();
-      case 9:
+      case 8:
         return const Lab8Screen();
       default:
         return const Lab1Screen();
@@ -1325,14 +1611,7 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                       ElevatedButton(
                         onPressed: connected
                             ? () {
-                                // TODO (BLE/UI): navigate to Meter or start measurement
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Opening Meter (placeholder)',
-                                    ),
-                                  ),
-                                );
+                                Navigator.pushNamed(context, '/meter');
                               }
                             : null,
                         child: const Text('Open Meter'),
@@ -1500,14 +1779,7 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                       ElevatedButton(
                         onPressed: connected
                             ? () {
-                                // TODO (BLE/UI): navigate to Meter or start measurement
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Opening Meter (placeholder)',
-                                    ),
-                                  ),
-                                );
+                                Navigator.pushNamed(context, '/meter');
                               }
                             : null,
                         child: const Text('Open Meter'),
@@ -1551,7 +1823,7 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                       decimal: true,
                     ),
                     decoration: const InputDecoration(
-                      labelText: 'Measured V1 (V)',
+                      labelText: 'Calculated V1 (V)',
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -1561,7 +1833,7 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                       decimal: true,
                     ),
                     decoration: const InputDecoration(
-                      labelText: 'Measured V2 (V)',
+                      labelText: 'Calculated V2 (V)',
                     ),
                   ),
                 ],
@@ -1602,14 +1874,7 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                       ElevatedButton(
                         onPressed: connected
                             ? () {
-                                // TODO (BLE/UI): navigate to Meter or start measurement
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Opening Meter (placeholder)',
-                                    ),
-                                  ),
-                                );
+                                Navigator.pushNamed(context, '/meter');
                               }
                             : null,
                         child: const Text('Open Meter'),
@@ -1834,22 +2099,11 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the multimeter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          // TODO: navigate to Meter or start a resistance read flow
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
+                        onPressed: connected
+                            ? () {
+                                Navigator.pushNamed(context, '/meter');
+                              }
+                            : null,
                         child: const Text('Open Meter'),
                       ),
                     ],
@@ -2048,22 +2302,11 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the multimeter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          // TODO: navigate to Meter or start a current measurement flow
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
+                        onPressed: connected
+                            ? () {
+                                Navigator.pushNamed(context, '/meter');
+                              }
+                            : null,
                         child: const Text('Open Meter'),
                       ),
                     ],
@@ -2125,25 +2368,11 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          final connected = context
-                              .read<AppState>()
-                              .deviceConnected;
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the multimeter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          // TODO: navigate to Meter or trigger a measurement flow
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
+                        onPressed: connected
+                            ? () {
+                                Navigator.pushNamed(context, '/meter');
+                              }
+                            : null,
                         child: const Text('Open Meter'),
                       ),
                     ],
@@ -2230,25 +2459,11 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          final connected = context
-                              .read<AppState>()
-                              .deviceConnected;
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the multimeter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          // TODO: navigate to Meter or trigger a measurement flow
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
+                        onPressed: connected
+                            ? () {
+                                Navigator.pushNamed(context, '/meter');
+                              }
+                            : null,
                         child: const Text('Open Meter'),
                       ),
                     ],
@@ -2640,21 +2855,11 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the multimeter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
+                        onPressed: connected
+                            ? () {
+                                Navigator.pushNamed(context, '/meter');
+                              }
+                            : null,
                         child: const Text('Open Meter'),
                       ),
                     ],
@@ -2876,21 +3081,11 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the multimeter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
+                        onPressed: connected
+                            ? () {
+                                Navigator.pushNamed(context, '/meter');
+                              }
+                            : null,
                         child: const Text('Open Meter'),
                       ),
                     ],
@@ -4131,21 +4326,11 @@ class _Lab4_2ScreenState extends State<Lab4_2Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
+                        onPressed: connected
+                            ? () {
+                                Navigator.pushNamed(context, '/meter');
+                              }
+                            : null,
                         child: const Text('Open Meter'),
                       ),
                     ],
@@ -4741,21 +4926,11 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
+                        onPressed: connected
+                            ? () {
+                                Navigator.pushNamed(context, '/meter');
+                              }
+                            : null,
                         child: const Text('Open Meter'),
                       ),
                     ],
@@ -5227,21 +5402,11 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
+                        onPressed: connected
+                            ? () {
+                                Navigator.pushNamed(context, '/meter');
+                              }
+                            : null,
                         child: const Text('Open Meter'),
                       ),
                     ],
@@ -6079,21 +6244,11 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
+                        onPressed: connected
+                            ? () {
+                                Navigator.pushNamed(context, '/meter');
+                              }
+                            : null,
                         child: const Text('Open Meter'),
                       ),
                     ],
@@ -6998,23 +7153,13 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: connected
+? () {
+Navigator.pushNamed(context, '/meter');
+}
+: null,
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -7100,23 +7245,13 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
-                          if (!connected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Opening Meter (placeholder)'),
-                            ),
-                          );
-                        },
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: connected
+? () {
+Navigator.pushNamed(context, '/meter');
+}
+: null,
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),
