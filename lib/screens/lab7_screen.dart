@@ -158,13 +158,18 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: () {
+final app = context.read<AppState>();
+if (!app.deviceConnected) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Connect to use the meter.')),
+);
+return;
+}
+app.showMeterOverlay(context);
+},
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -176,8 +181,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     decoration: const InputDecoration(labelText: 'R1 (Ω)'),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Components(r1Ohm: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -189,8 +195,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     decoration: const InputDecoration(labelText: 'R2 (Ω)'),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Components(r2Ohm: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -202,8 +209,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     decoration: const InputDecoration(labelText: 'R3 (Ω)'),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Components(r3Ohm: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -215,8 +223,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     decoration: const InputDecoration(labelText: 'C (µF)'),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Components(c_uF: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 12),
@@ -440,8 +449,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Sine(vinAmp_V: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -455,8 +465,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Sine(voutAmp_V: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -470,8 +481,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Sine(phaseDeg: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -644,8 +656,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Square(vinAmp_V: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -659,8 +672,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Square(voutAmp_V: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -674,8 +688,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Square(phaseDeg: v);
+                      }
                     },
                   ),
                 ],
@@ -831,8 +846,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Tri(vinAmp_V: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -846,8 +862,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Tri(voutAmp_V: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -861,8 +878,9 @@ class _Lab7ScreenState extends State<Lab7Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab7Tri(phaseDeg: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),

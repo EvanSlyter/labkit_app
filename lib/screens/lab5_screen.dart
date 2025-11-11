@@ -146,13 +146,18 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: () {
+final app = context.read<AppState>();
+if (!app.deviceConnected) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Connect to use the meter.')),
+);
+return;
+}
+app.showMeterOverlay(context);
+},
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -166,8 +171,9 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab5(rPotMinOhm: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -181,8 +187,9 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab5(rPotMaxOhm: v);
+                      }
                     },
                   ),
                 ],
@@ -565,8 +572,9 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab5(timeShiftMsMax: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -580,10 +588,11 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab5(
                           phaseShiftDegMax: v,
                         );
+                      }
                     },
                   ),
                 ],
@@ -622,13 +631,18 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: () {
+final app = context.read<AppState>();
+if (!app.deviceConnected) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Connect to use the meter.')),
+);
+return;
+}
+app.showMeterOverlay(context);
+},
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -642,8 +656,9 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab5(vrmsSource: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -657,8 +672,9 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab5(vrmsPot: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -672,8 +688,9 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab5(vrmsCap: v);
+                      }
                     },
                   ),
                 ],

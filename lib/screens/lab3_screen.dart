@@ -149,13 +149,18 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: () {
+final app = context.read<AppState>();
+if (!app.deviceConnected) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Connect to use the meter.')),
+);
+return;
+}
+app.showMeterOverlay(context);
+},
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -375,13 +380,18 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: () {
+final app = context.read<AppState>();
+if (!app.deviceConnected) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Connect to use the meter.')),
+);
+return;
+}
+app.showMeterOverlay(context);
+},
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -395,8 +405,9 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                     ),
                     onChanged: (text) {
                       final v = _parseDouble(text);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab3(vinVoltDC: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -410,8 +421,9 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                     ),
                     onChanged: (text) {
                       final v = _parseDouble(text);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab3(voutVoltDC: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -458,8 +470,9 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                     ),
                     onChanged: (text) {
                       final v = _parseDouble(text);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab3(scalingFactorDC: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -659,8 +672,9 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                     ),
                     onChanged: (text) {
                       final v = _parseDouble(text);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab3(vinAmp: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -674,8 +688,9 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                     ),
                     onChanged: (text) {
                       final v = _parseDouble(text);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab3(voutAmp: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -689,8 +704,9 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                     ),
                     onChanged: (text) {
                       final v = _parseDouble(text);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab3(scalingFactorAC: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),

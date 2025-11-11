@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'dart:math' as math;
+//import 'package:fl_chart/fl_chart.dart';
+//import 'dart:math' as math;
 import 'state/app_state.dart'; // or ../../state/app_state.dart from /screens/labs
 import 'screens/lab_list_screen.dart';
 import 'widgets/meter_screen.dart';
+import 'screens/settings_screen.dart';
+
 
 
 void main() {
@@ -31,6 +33,7 @@ home: const LabListScreen(),
 // Register any named routes you use (Meter in your case)
 routes: {
 '/meter': (_) => const MeterScreen(),
+'/settings': (_) => const SettingsScreen(),
 },
 ),
 );

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../state/app_state.dart';
 import '../../widgets/connection_warning.dart';
-import '../widgets/meter_screen.dart';
 
 class Lab2Screen extends StatefulWidget {
   const Lab2Screen({super.key});
@@ -149,13 +148,18 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: () {
+final app = context.read<AppState>();
+if (!app.deviceConnected) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Connect to use the meter.')),
+);
+return;
+}
+app.showMeterOverlay(context);
+},
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -352,13 +356,18 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: () {
+final app = context.read<AppState>();
+if (!app.deviceConnected) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Connect to use the meter.')),
+);
+return;
+}
+app.showMeterOverlay(context);
+},
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -418,13 +427,18 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: () {
+final app = context.read<AppState>();
+if (!app.deviceConnected) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Connect to use the meter.')),
+);
+return;
+}
+app.showMeterOverlay(context);
+},
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -509,13 +523,18 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: () {
+final app = context.read<AppState>();
+if (!app.deviceConnected) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Connect to use the meter.')),
+);
+return;
+}
+app.showMeterOverlay(context);
+},
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),

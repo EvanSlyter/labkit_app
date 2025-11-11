@@ -119,8 +119,9 @@ class _MeterScreenState extends State<MeterScreen> {
       if (!connected) subline = 'Connect to the device to take measurements.';
     } else if (!_isSignificant(app)) {
       headline = 'Meter on: waiting for stable reading…';
-      if (!connected)
+      if (!connected) {
         subline = 'Note: not connected — showing mock/wait state.';
+      }
     } else {
       headline = _formatReading(app);
       final t = app.meterReadingAt;

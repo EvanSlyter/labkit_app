@@ -46,8 +46,12 @@ class _Lab6ScreenState extends State<Lab6Screen> {
 
   @override
   void dispose() {
-    for (final c in _vinCtrls) c.dispose();
-    for (final c in _voutCtrls) c.dispose();
+    for (final c in _vinCtrls) {
+      c.dispose();
+    }
+    for (final c in _voutCtrls) {
+      c.dispose();
+    }
     _fMinus3dBCtrl.dispose();
     _rCtrl.dispose();
     _cCtrl.dispose();
@@ -314,10 +318,11 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                     decoration: const InputDecoration(labelText: 'f_–3dB (Hz)'),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab6Bode(
                           fMinus3dBApproxHz: v,
                         );
+                      }
                       setState(() {});
                     },
                   ),
@@ -330,8 +335,9 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                     decoration: const InputDecoration(labelText: 'R (Ω)'),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab6Bode(R_Ohm: v);
+                      }
                       setState(() {});
                     },
                   ),
@@ -344,8 +350,9 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                     decoration: const InputDecoration(labelText: 'C (µF)'),
                     onChanged: (t) {
                       final v = _parseDouble(t);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab6Bode(C_uF: v);
+                      }
                       setState(() {});
                     },
                   ),

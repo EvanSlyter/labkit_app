@@ -1,4 +1,12 @@
 import 'package:flutter/material.dart';
+import 'dart:convert' as convert;
+import 'dart:io' as io;
+import 'package:path_provider/path_provider.dart';
+import 'package:archive/archive.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path/path.dart' as p;
+import '../widgets/meter_overlay.dart';
 
 enum AppMode { none, free, lab }
 
@@ -879,4 +887,377 @@ class AppState extends ChangeNotifier {
     lab8.notesCompare = notes;
     notifyListeners();
   }
+
+// Student email (persisted)
+String? studentEmail;
+// Call this once at app start (e.g., in main/home) to load stored email
+Future<void> loadSettings() async {
+final prefs = await SharedPreferences.getInstance();
+studentEmail = prefs.getString('studentEmail');
+notifyListeners();
 }
+
+Future<void> saveStudentEmail(String email) async {
+studentEmail = email.trim();
+final prefs = await SharedPreferences.getInstance();
+await prefs.setString('studentEmail', studentEmail!);
+notifyListeners();
+}
+
+// Build a ZIP with JSON/CSVs and return its path
+Future<String> buildExportZip() async {
+final tmpDir = await getTemporaryDirectory();
+final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+final workDir = io.Directory('${tmpDir.path}/labkit_export_$stamp');
+await workDir.create(recursive: true);
+
+// 1) Write summary.json (add more fields from your labs as desired)
+// 1) Write summary.json (add more fields from your labs as desired)
+final summary = {
+'generated_at': DateTime.now().toIso8601String(),
+'student_email': studentEmail ?? '',
+'labs': {
+// Lab 1 (adjust names if yours differ)
+'lab1': {
+'rA1Ohm': lab1.rA1Ohm,
+'rA2Ohm': lab1.rA2Ohm,
+'circuitBuilt': lab1.circuitBuilt,
+'vCVolt': lab1.vCVolt,
+'vE1VoltCalc': lab1.v1VoltCalc,
+'vE1VoltMeasure': lab1.v1VoltMeasure,
+'vE2VoltCalc': lab1.v2VoltCalc,
+'vE2VoltMeasure': lab1.v2VoltMeasure,
+'notesD': lab1.notesD,
+'notesF': lab1.notesF,
+},
+
+// Lab 2
+'lab2': {
+'r1Ohm': lab2.r1Ohm,
+'r2Ohm': lab2.r2Ohm,
+'r3Ohm': lab2.r3Ohm,
+'r4Ohm': lab2.r4Ohm,
+'rLOhm': lab2.rLOhm,
+'circuitBuilt': lab2.circuitBuilt,
+'iL_mA': lab2.iL_mA,
+'vxyVolt': lab2.vxyVolt,
+'vlCalcVolt': lab2.vlCalcVolt,
+'vocVolt': lab2.vocVolt,
+'isc_mA': lab2.isc_mA,
+'ilTh_mA': lab2.ilTh_mA,
+'ilSim_mA': lab2.ilSim_mA,
+'pd_meas_th_pct': lab2.pd_meas_th_pct,
+'pd_meas_sim_pct': lab2.pd_meas_sim_pct,
+'pd_th_sim_pct': lab2.pd_th_sim_pct,
+},
+
+// Lab 3
+'lab3': {
+'r1Ohm': lab3.r1Ohm,
+'r2Ohm': lab3.r2Ohm,
+'r3Ohm': lab3.r3Ohm,
+'circuitBuilt': lab3.circuitBuilt,
+'vinVoltDC': lab3.vinVoltDC,
+'voutVoltDC': lab3.voutVoltDC,
+'notesC': lab3.notesC,
+'scalingFactorDC': lab3.scalingFactorDC,
+'notesD': lab3.notesD,
+'acVinSaved': lab3.acVinSaved,
+'acVoutSaved': lab3.acVoutSaved,
+'vinAmp': lab3.vinAmp,
+'voutAmp': lab3.voutAmp,
+'scalingFactorAC': lab3.scalingFactorAC,
+'notesF': lab3.notesF,
+'timeShiftMs': lab3.timeShiftMs,
+},
+
+// Lab 4.1
+'lab4_1': {
+'rOhm_A1': lab4_1.rOhm_A1,
+'c_uF_A1': lab4_1.c_uF_A1,
+'circuitBuilt_41': lab4_1.circuitBuilt_41,
+'vinSaved_1uF': lab4_1.vinSaved_1uF,
+'voutSaved_1uF': lab4_1.voutSaved_1uF,
+'vinSaved_10uF': lab4_1.vinSaved_10uF,
+'voutSaved_10uF': lab4_1.voutSaved_10uF,
+'vinSaved_100uF': lab4_1.vinSaved_100uF,
+'voutSaved_100uF': lab4_1.voutSaved_100uF,
+'tauMs': lab4_1.tauMs,
+'notesCompare': lab4_1.notesCompare,
+},
+
+// Lab 4.2
+'lab4_2': {
+'L1_mH': lab4_2.L1_mH,
+'RL1_Ohm': lab4_2.RL1_Ohm,
+'L2_mH': lab4_2.L2_mH,
+'RL2_Ohm': lab4_2.RL2_Ohm,
+'L3_mH': lab4_2.L3_mH,
+'RL3_Ohm': lab4_2.RL3_Ohm,
+'R_Ohm': lab4_2.R_Ohm,
+'circuitBuilt_42': lab4_2.circuitBuilt_42,
+'vinSaved_42': lab4_2.vinSaved_42,
+'voutSaved_42': lab4_2.voutSaved_42,
+'tauGraph_ms': lab4_2.tauGraph_ms,
+'tauCalc_ms': lab4_2.tauCalc_ms,
+'tauPrelab_ms': lab4_2.tauPrelab_ms,
+'notesCompare': lab4_2.notesCompare,
+},
+
+// Lab 5
+'lab5': {
+'rPotMinOhm': lab5.rPotMinOhm,
+'rPotMaxOhm': lab5.rPotMaxOhm,
+'notesPhaseShift': lab5.notesPhaseShift,
+'timeShiftMsMax': lab5.timeShiftMsMax,
+'phaseShiftDegMax': lab5.phaseShiftDegMax,
+'vrmsSource': lab5.vrmsSource,
+'vrmsPot': lab5.vrmsPot,
+'vrmsCap': lab5.vrmsCap,
+'kvlApplies': lab5.kvlApplies,
+'notesKVL': lab5.notesKVL,
+},
+
+// Lab 6 (table exported separately as CSV; keep the scalars in JSON)
+'lab6': {
+'fMinus3dBApproxHz': lab6.fMinus3dBApproxHz,
+'f0TheoryHz': lab6.f0TheoryHz,
+'R_Ohm': lab6.R_Ohm,
+'C_uF': lab6.C_uF,
+'rowCount': lab6Rows.length,
+},
+
+// Lab 7
+'lab7': {
+'r1Ohm': lab7.r1Ohm,
+'r2Ohm': lab7.r2Ohm,
+'r3Ohm': lab7.r3Ohm,
+'c_uF': lab7.c_uF,
+'circuitBuilt_7': lab7.circuitBuilt_7,
+// Sine
+'vinAmpSine_V': lab7.vinAmpSine_V,
+'voutAmpSine_V': lab7.voutAmpSine_V,
+'phaseDegSine': lab7.phaseDegSine,
+// Square
+'vinAmpSquare_V': lab7.vinAmpSquare_V,
+'voutAmpSquare_V': lab7.voutAmpSquare_V,
+'phaseDegSquare': lab7.phaseDegSquare,
+// Triangle
+'vinAmpTri_V': lab7.vinAmpTri_V,
+'voutAmpTri_V': lab7.voutAmpTri_V,
+'phaseDegTri': lab7.phaseDegTri,
+},
+
+// Lab 8 (you already export CSVs; include scalars/notes in JSON too)
+'lab8': {
+'builtAND': lab8.builtAND,
+'builtOR': lab8.builtOR,
+'builtComplex': lab8.builtComplex,
+'andVout': lab8.andVout,
+'orVout': lab8.orVout,
+'complexVout': lab8.complexVout,
+'notes': lab8.notesCompare,
+},
+}
+};
+final prettyJson = const convert.JsonEncoder.withIndent(' ').convert(summary);
+await _writeTextFile(workDir, 'summary.json', '$prettyJson\n');
+
+// 2) Write Lab 6 table as CSV if present
+if (lab6Rows.isNotEmpty) {
+final rows = <List<String>>[
+['f_hz', 'vin_mV', 'vout_mV', 'ratio'],
+for (final r in lab6Rows)
+[
+r.fHz.toString(),
+(r.vin_mV ?? '').toString(),
+(r.vout_mV ?? '').toString(),
+(r.ratio ?? '').toString(),
+],
+];
+await _writeCsv(workDir, 'lab6_table.csv', rows);
+}
+
+// 3) Write Lab 8 truth tables as CSVs
+final andRows = <List<String>>[
+['A_V', 'B_V', 'Vout_V'],
+['0', '0', (lab8.andVout[0] ?? '').toString()],
+['0', '5', (lab8.andVout[1] ?? '').toString()],
+['5', '0', (lab8.andVout[2] ?? '').toString()],
+['5', '5', (lab8.andVout[3] ?? '').toString()],
+];
+await _writeCsv(workDir, 'lab8_and.csv', andRows);
+
+final orRows = <List<String>>[
+['A_V', 'B_V', 'Vout_V'],
+['0', '0', (lab8.orVout[0] ?? '').toString()],
+['0', '5', (lab8.orVout[1] ?? '').toString()],
+['5', '0', (lab8.orVout[2] ?? '').toString()],
+['5', '5', (lab8.orVout[3] ?? '').toString()],
+];
+await _writeCsv(workDir, 'lab8_or.csv', orRows);
+
+final complexRows = <List<String>>[
+['A_V', 'B_V', 'C_V', 'Vout_V'],
+['0', '0', '0', (lab8.complexVout[0] ?? '').toString()],
+['0', '0', '5', (lab8.complexVout[1] ?? '').toString()],
+['0', '5', '0', (lab8.complexVout[2] ?? '').toString()],
+['0', '5', '5', (lab8.complexVout[3] ?? '').toString()],
+['5', '0', '0', (lab8.complexVout[4] ?? '').toString()],
+['5', '0', '5', (lab8.complexVout[5] ?? '').toString()],
+['5', '5', '0', (lab8.complexVout[6] ?? '').toString()],
+['5', '5', '5', (lab8.complexVout[7] ?? '').toString()],
+];
+await _writeCsv(workDir, 'lab8_complex.csv', complexRows);
+
+// 4) Write waveform CSVs (time,value) for any saved waveforms you have
+final waveforms = <MapEntry<String, WaveformData?>>[
+MapEntry('lab3_vin', lab3VinWaveform),
+MapEntry('lab3_vout', lab3VoutWaveform),
+MapEntry('lab4_1_vin_1uF', lab4Vin_1uF),
+MapEntry('lab4_1_vout_1uF', lab4Vout_1uF),
+MapEntry('lab4_1_vin_10uF', lab4Vin_10uF),
+MapEntry('lab4_1_vout_10uF', lab4Vout_10uF),
+MapEntry('lab4_1_vin_100uF', lab4Vin_100uF),
+MapEntry('lab4_1_vout_100uF', lab4Vout_100uF),
+MapEntry('lab4_2_vin', lab4_2VinWaveform),
+MapEntry('lab4_2_vout', lab4_2VoutWaveform),
+MapEntry('lab5_vin_min', lab5VinMinWaveform),
+MapEntry('lab5_vout_min', lab5VoutMinWaveform),
+MapEntry('lab5_vin_max', lab5VinMaxWaveform),
+MapEntry('lab5_vout_max', lab5VoutMaxWaveform),
+MapEntry('lab7_vin_sine', lab7VinSine),
+MapEntry('lab7_vout_sine', lab7VoutSine),
+MapEntry('lab7_vin_square', lab7VinSquare),
+MapEntry('lab7_vout_square', lab7VoutSquare),
+MapEntry('lab7_vin_tri', lab7VinTri),
+MapEntry('lab7_vout_tri', lab7VoutTri),
+];
+
+for (final entry in waveforms) {
+final w = entry.value;
+if (w == null) continue;
+final rows = <List<String>>[
+['time_s', 'value'],
+for (int i = 0; i < w.samples.length; i++)
+[(i / w.sampleRateHz).toStringAsFixed(6), w.samples[i].toString()],
+];
+await _writeCsv(workDir, '${entry.key}.csv', rows);
+}
+
+// 5) Zip everything in workDir
+final archive = Archive();
+for (final entity in workDir.listSync(recursive: false)) {
+if (entity is io.File) {
+final bytes = await entity.readAsBytes();
+final name = p.basename(entity.path); // from package:path
+archive.addFile(ArchiveFile(name, bytes.length, bytes));
+}
+}
+final zipBytes = ZipEncoder().encode(archive);
+final zipPath = '${workDir.path}.zip';
+final zipFile = io.File(zipPath);
+await zipFile.writeAsBytes(zipBytes, flush: true);
+
+return zipPath;
+}
+
+// Helper: write text file
+Future<void> _writeTextFile(io.Directory dir, String name, String content) async {
+final file = io.File('${dir.path}/$name');
+await file.writeAsString(content);
+}
+
+// Helper: write CSV
+Future<void> _writeCsv(io.Directory dir, String name, List<List<String>> rows) async {
+final buf = StringBuffer();
+for (final row in rows) {
+buf.writeln(row.map(_escapeCsv).join(','));
+}
+await _writeTextFile(dir, name, buf.toString());
+}
+
+String _escapeCsv(String s) {
+if (s.contains(',') || s.contains('"') || s.contains('\n')) {
+return '"${s.replaceAll('"', '""')}"';
+}
+return s;
+}
+
+// Share helper: build and open email/share sheet
+Future<void> shareExport(BuildContext context) async {
+final zipPath = await buildExportZip();
+final xfile = XFile(zipPath);
+await Share.shareXFiles(
+[xfile],
+subject: 'LabKit export',
+text: studentEmail != null && studentEmail!.isNotEmpty
+? 'Export for $studentEmail attached.'
+: 'LabKit export attached.',
+);
+}
+
+// Overlay entry for the floating meter
+// Overlay management
+OverlayEntry? _meterOverlay;
+
+// Target for "Insert into field" (set by the active TextField)
+ValueSetter<double>? activeInsertTarget;
+void setActiveInsertTarget(ValueSetter<double>? target) {
+activeInsertTarget = target;
+}
+
+// Show the floating meter overlay (use the SafeArea version you already added)
+void showMeterOverlay(BuildContext context) {
+if (_meterOverlay != null) return;
+if (!meterEnabled) sendMeterConfigure(meterMode);
+
+final screenH = MediaQuery.of(context).size.height;
+// Use up to 35% of the screen height, but cap at 260 px
+final maxH = screenH * 0.35;
+final boundedMaxH = maxH.clamp(220.0, 260.0);
+
+_meterOverlay = OverlayEntry(
+builder: (ctx) => SafeArea(
+minimum: const EdgeInsets.only(right: 12, bottom: 12),
+child: Align(
+alignment: Alignment.bottomRight,
+child: Material(
+elevation: 8,
+borderRadius: BorderRadius.circular(12),
+clipBehavior: Clip.antiAlias,
+child: ConstrainedBox(
+constraints: BoxConstraints(
+maxWidth: 320,
+maxHeight: boundedMaxH, // dynamically bounded
+),
+child: const MeterOverlayCard(),
+),
+),
+),
+),
+);
+
+Overlay.of(context, rootOverlay: true).insert(_meterOverlay!);
+notifyListeners();
+}
+
+// Hide the overlay
+void hideMeterOverlay() {
+_meterOverlay?.remove();
+_meterOverlay = null;
+notifyListeners();
+}
+
+// Insert current reading into the active target
+void insertCurrentReadingIntoActiveTarget() {
+final v = meterReading;
+final target = activeInsertTarget;
+if (v != null && target != null) {
+target(v);
+}
+}
+
+
+}
+

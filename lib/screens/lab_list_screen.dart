@@ -7,6 +7,8 @@ import 'lab5_screen.dart';
 import 'lab6_screen.dart';
 import 'lab7_screen.dart';
 import 'lab8_screen.dart';
+import 'package:provider/provider.dart';
+import '../state/app_state.dart';
 
 class _LabItem {
 final String title;
@@ -85,11 +87,36 @@ appBar: AppBar(
 title: const Text('Labs'),
 actions: [
 IconButton(
+tooltip: 'Settings',
+icon: const Icon(Icons.settings),
+onPressed: () => Navigator.pushNamed(context, '/settings'),
+),
+IconButton(
+tooltip: 'Export',
+icon: const Icon(Icons.ios_share),
+onPressed: () async {
+final app = context.read<AppState>();
+if ((app.studentEmail ?? '').isEmpty) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Enter your email in Settings first.')),
+);
+return;
+}
+await app.shareExport(context);
+},
+),
+IconButton(
 tooltip: 'Open Meter',
 icon: const Icon(Icons.speed),
 onPressed: () {
-// Opens the Meter via named route (be sure /meter is registered in MaterialApp.routes)
-Navigator.pushNamed(context, '/meter');
+final app = context.read<AppState>();
+if (!app.deviceConnected) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Connect to use the meter.')),
+);
+return;
+}
+app.showMeterOverlay(context);
 },
 ),
 ],

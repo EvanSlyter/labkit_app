@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../state/app_state.dart';
 import '../../widgets/connection_warning.dart';
-import '../widgets/waveform_viewer.dart';
-import 'dart:math' as math;
 
 class Lab8Screen extends StatefulWidget {
   const Lab8Screen({super.key});
@@ -66,9 +64,15 @@ class _Lab8ScreenState extends State<Lab8Screen> {
 
   @override
   void dispose() {
-    for (final c in _andVoutCtrls) c.dispose();
-    for (final c in _orVoutCtrls) c.dispose();
-    for (final c in _complexVoutCtrls) c.dispose();
+    for (final c in _andVoutCtrls) {
+      c.dispose();
+    }
+    for (final c in _orVoutCtrls) {
+      c.dispose();
+    }
+    for (final c in _complexVoutCtrls) {
+      c.dispose();
+    }
     _notesCtrl.dispose();
     super.dispose();
   }
@@ -158,11 +162,18 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
+                        onPressed: () {
+                          final app = context.read<AppState>();
+                          if (!app.deviceConnected) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connect to use the meter.'),
+                              ),
+                            );
+                            return;
+                          }
+                          app.showMeterOverlay(context);
+                        },
                         child: const Text('Open Meter'),
                       ),
                     ],
@@ -250,11 +261,18 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
+                        onPressed: () {
+                          final app = context.read<AppState>();
+                          if (!app.deviceConnected) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connect to use the meter.'),
+                              ),
+                            );
+                            return;
+                          }
+                          app.showMeterOverlay(context);
+                        },
                         child: const Text('Open Meter'),
                       ),
                     ],

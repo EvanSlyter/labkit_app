@@ -146,13 +146,18 @@ class _Lab4_2ScreenState extends State<Lab4_2Screen> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: connected
-                            ? () {
-                                Navigator.pushNamed(context, '/meter');
-                              }
-                            : null,
-                        child: const Text('Open Meter'),
-                      ),
+onPressed: () {
+final app = context.read<AppState>();
+if (!app.deviceConnected) {
+ScaffoldMessenger.of(context).showSnackBar(
+const SnackBar(content: Text('Connect to use the meter.')),
+);
+return;
+}
+app.showMeterOverlay(context);
+},
+child: const Text('Open Meter'),
+),
                     ],
                   ),
                   const SizedBox(height: 12),

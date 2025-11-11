@@ -112,8 +112,9 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     ),
                     onChanged: (text) {
                       final v = double.tryParse(text.trim());
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab4(rOhm_A1: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
@@ -127,8 +128,9 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     ),
                     onChanged: (text) {
                       final v = double.tryParse(text.trim());
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab4(c_uF_A1: v);
+                      }
                     },
                   ),
                 ],
@@ -517,8 +519,9 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     decoration: const InputDecoration(labelText: 'τ (ms)'),
                     onChanged: (text) {
                       final v = _parseDouble(text);
-                      if (v != null)
+                      if (v != null) {
                         context.read<AppState>().updateLab4(tauMs: v);
+                      }
                     },
                   ),
                 ],
