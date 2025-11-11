@@ -16,7 +16,7 @@ Card(
 child: ListTile(
 leading: const Icon(Icons.science),
 title: const Text('Lab 4.1 — RC response with different capacitors'),
-subtitle: const Text('Build 4.1, save waveforms (1µF, 10µF, 100µF), compute τ'),
+//subtitle: const Text('Build 4.1, save waveforms (1µF, 10µF, 100µF), compute τ'),
 trailing: const Icon(Icons.chevron_right),
 onTap: () => Navigator.push(
 context,
@@ -28,7 +28,7 @@ Card(
 child: ListTile(
 leading: const Icon(Icons.science_outlined),
 title: const Text('Lab 4.2 — RL response with inductors'),
-subtitle: const Text('Measure L & R, build 4.2, save waveforms, find τ'),
+//subtitle: const Text('Measure L & R, build 4.2, save waveforms, find τ'),
 trailing: const Icon(Icons.chevron_right),
 onTap: () => Navigator.push(
 context,

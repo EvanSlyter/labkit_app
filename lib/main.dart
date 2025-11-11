@@ -3,10 +3,10 @@ import 'package:provider/provider.dart';
 //import 'package:fl_chart/fl_chart.dart';
 //import 'dart:math' as math;
 import 'state/app_state.dart'; // or ../../state/app_state.dart from /screens/labs
-import 'screens/lab_list_screen.dart';
+//import 'screens/lab_list_screen.dart';
 import 'widgets/meter_screen.dart';
 import 'screens/settings_screen.dart';
-
+import 'screens/start_screen.dart';
 
 
 void main() {
@@ -28,12 +28,10 @@ theme: ThemeData(
 colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
 useMaterial3: true,
 ),
-// Root is gone; start on the lab list
-home: const LabListScreen(),
-// Register any named routes you use (Meter in your case)
+home: const StartScreen(),
 routes: {
 '/meter': (_) => const MeterScreen(),
-'/settings': (_) => const SettingsScreen(),
+'/settings': (_) => const SettingsScreen(), // optional if you use it
 },
 ),
 );

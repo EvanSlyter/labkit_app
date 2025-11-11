@@ -1258,6 +1258,18 @@ target(v);
 }
 }
 
+// Simulated connect/disconnect (replace with real BLE connect later)
+Future<void> requestConnect() async {
+// TODO: replace with BLE scan/connect flow; this is just a placeholder
+deviceConnected = true;
+notifyListeners();
+}
+
+Future<void> requestDisconnect() async {
+// TODO: replace with real BLE disconnect
+deviceConnected = false;
+notifyListeners();
+}
 
 }
 

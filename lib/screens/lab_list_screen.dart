@@ -24,6 +24,34 @@ this.subtitle,
 });
 }
 
+Future<bool> _confirmPrelab(BuildContext context) async {
+return (await showDialog<bool>(
+context: context,
+builder: (ctx) => AlertDialog(
+title: const Text('Prelab confirmation'),
+content: const Text(
+'Have you completed the prelab for this lab?\n\n'
+'Prelabs provide context and setup. Some labs may be difficult or impossible to complete without them.',
+),
+actions: [
+TextButton(
+onPressed: () => Navigator.pop(ctx, false),
+child: const Text('Cancel'),
+),
+TextButton(
+onPressed: () => Navigator.pop(ctx, true),
+child: const Text('Continue without prelab'),
+),
+ElevatedButton(
+onPressed: () => Navigator.pop(ctx, true),
+child: const Text('I completed the prelab'),
+),
+],
+),
+)) ??
+false;
+}
+
 class LabListScreen extends StatelessWidget {
 const LabListScreen({super.key});
 
@@ -34,49 +62,49 @@ Widget build(BuildContext context) {
 final items = <_LabItem>[
 _LabItem(
 title: 'Lab 1',
-subtitle: 'Basic measurements and procedure',
+subtitle: 'Ohms Law and Kirchoffs Laws',
 icon: Icons.filter_1,
 builder: (context) => const Lab1Screen(),
 ),
 _LabItem(
 title: 'Lab 2',
-subtitle: 'Node voltages and equivalent circuits',
+subtitle: 'Node Voltages and Equivalent Circuits',
 icon: Icons.filter_2,
 builder: (context) => const Lab2Screen(),
 ),
 _LabItem(
 title: 'Lab 3',
-subtitle: 'RC circuit: DC/AC, scaling, time shift',
+subtitle: 'Introduction to Op Amps',
 icon: Icons.filter_3,
 builder: (context) => const Lab3Screen(),
 ),
 _LabItem(
 title: 'Lab 4',
-subtitle: 'Select 4.1 (RC) or 4.2 (RL)',
+subtitle: 'First Order RC and RL Transients',
 icon: Icons.filter_4,
 builder: (context) => const Lab4MenuScreen(), // submenu for 4.1 / 4.2
 ),
 _LabItem(
 title: 'Lab 5',
-subtitle: 'Potentiometer and phase shift',
+subtitle: 'Introduction to AC Signals',
 icon: Icons.filter_5,
 builder: (context) => const Lab5Screen(),
 ),
 _LabItem(
 title: 'Lab 6',
-subtitle: 'Frequency response and Bode plot',
+subtitle: 'Frequency Response',
 icon: Icons.filter_6,
 builder: (context) => const Lab6Screen(),
 ),
 _LabItem(
 title: 'Lab 7',
-subtitle: 'Op-amp with sine/square/triangle',
+subtitle: 'Op-Amp Integrator and Active Filter',
 icon: Icons.filter_7,
 builder: (context) => const Lab7Screen(),
 ),
 _LabItem(
 title: 'Lab 8',
-subtitle: 'Logic gates and truth tables',
+subtitle: 'Introduction to Logic Gates',
 icon: Icons.filter_8,
 builder: (context) => const Lab8Screen(),
 ),
@@ -133,11 +161,15 @@ leading: Icon(it.icon),
 title: Text(it.title),
 subtitle: it.subtitle != null ? Text(it.subtitle!) : null,
 trailing: const Icon(Icons.chevron_right),
-onTap: () {
-Navigator.push(
-context,
-MaterialPageRoute(builder: it.builder),
-);
+onTap: () async {
+// 1) Ask for confirmation
+final ok = await _confirmPrelab(context);
+
+// 2) Ensure this context is still valid
+if (!context.mounted || !ok) return;
+
+// 3) Now it’s safe to use context
+Navigator.push(context, MaterialPageRoute(builder: it.builder));
 },
 ),
 );

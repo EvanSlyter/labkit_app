@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../state/app_state.dart';
 import '../../widgets/connection_warning.dart';
-import '../widgets/waveform_viewer.dart';
-import 'dart:math' as math;
+//import '../widgets/waveform_viewer.dart';
+//import 'dart:math' as math;
 
 class Lab6Screen extends StatefulWidget {
   const Lab6Screen({super.key});
