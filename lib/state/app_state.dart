@@ -1271,5 +1271,23 @@ deviceConnected = false;
 notifyListeners();
 }
 
+// Identifiers for the connected device (saved when you "connect")
+String? connectedDeviceId;
+String? connectedDeviceName;
+
+void setConnectedDevice({required String id, required String name}) {
+connectedDeviceId = id;
+connectedDeviceName = name;
+deviceConnected = true;
+notifyListeners();
+}
+
+void clearConnectedDevice() {
+connectedDeviceId = null;
+connectedDeviceName = null;
+deviceConnected = false;
+notifyListeners();
+}
+
 }
 

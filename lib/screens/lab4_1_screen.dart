@@ -5,9 +5,6 @@ import '../../widgets/connection_warning.dart';
 import '../widgets/waveform_viewer.dart';
 import 'dart:math' as math;
 
-
-
-
 class Lab4_1Screen extends StatefulWidget {
   const Lab4_1Screen({super.key});
   @override
@@ -98,10 +95,41 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
+
+                  // Open Meter overlay button (top of card)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.speed),
+                      label: const Text('Open Meter overlay'),
+                      onPressed: () {
+                        // Hide the keyboard so the overlay is visible
+                        FocusScope.of(context).unfocus();
+
+                        final app = context.read<AppState>();
+                        if (!app.deviceConnected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Connect to the LabKit to use the meter.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        app.showMeterOverlay(context);
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
                   const Text(
                     'Record the resistor and capacitor values used in Circuit 4.1.',
                   ),
+
                   const SizedBox(height: 12),
+
+                  // Resistor R (Ω)
                   TextField(
                     controller: _rA1Ctrl,
                     keyboardType: const TextInputType.numberWithOptions(
@@ -110,14 +138,25 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     decoration: const InputDecoration(
                       labelText: 'Resistor R (Ω)',
                     ),
+                    onTap: () {
+                      // Insert target: meter reading in SI (ohms)
+                      context.read<AppState>().setActiveInsertTarget((valueSI) {
+                        final ohms =
+                            valueSI; // AppState.meterReading = Ω in resistance mode
+                        _rA1Ctrl.text = ohms.toStringAsFixed(2);
+                        context.read<AppState>().updateLab4(rOhm_A1: ohms);
+                      });
+                    },
                     onChanged: (text) {
-                      final v = double.tryParse(text.trim());
-                      if (v != null) {
+                      final v = double.tryParse(text);
+                      if (v != null)
                         context.read<AppState>().updateLab4(rOhm_A1: v);
-                      }
                     },
                   ),
+
                   const SizedBox(height: 8),
+
+                  // Capacitor C (µF)
                   TextField(
                     controller: _cA1Ctrl,
                     keyboardType: const TextInputType.numberWithOptions(
@@ -126,12 +165,25 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     decoration: const InputDecoration(
                       labelText: 'Capacitor C (µF)',
                     ),
-                    onChanged: (text) {
-                      final v = double.tryParse(text.trim());
-                      if (v != null) {
-                        context.read<AppState>().updateLab4(c_uF_A1: v);
-                      }
+                    onTap: () {
+                      // Insert target: meter reading in SI (farads) → convert to µF
+                      context.read<AppState>().setActiveInsertTarget((valueSI) {
+                        final uF = valueSI * 1e6; // F → µF
+                        _cA1Ctrl.text = uF.toStringAsFixed(2);
+                        context.read<AppState>().updateLab4(c_uF_A1: uF);
+                      });
                     },
+                    onChanged: (text) {
+                      final v = double.tryParse(text);
+                      if (v != null)
+                        context.read<AppState>().updateLab4(c_uF_A1: v);
+                    },
+                  ),
+
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Tip: Tap the field first to target it, then open the meter and press “Insert into field”.',
+                    style: TextStyle(color: Colors.grey),
                   ),
                 ],
               ),

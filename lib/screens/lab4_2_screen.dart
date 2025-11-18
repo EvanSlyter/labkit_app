@@ -146,18 +146,23 @@ class _Lab4_2ScreenState extends State<Lab4_2Screen> {
                         ),
                       ),
                       ElevatedButton(
-onPressed: () {
-final app = context.read<AppState>();
-if (!app.deviceConnected) {
-ScaffoldMessenger.of(context).showSnackBar(
-const SnackBar(content: Text('Connect to use the meter.')),
-);
-return;
-}
-app.showMeterOverlay(context);
-},
-child: const Text('Open Meter'),
-),
+                        onPressed: () {
+                          FocusScope.of(
+                            context,
+                          ).unfocus(); // hide keyboard immediately
+                          final app = context.read<AppState>();
+                          if (!app.deviceConnected) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connect to use the meter.'),
+                              ),
+                            );
+                            return;
+                          }
+                          app.showMeterOverlay(context);
+                        },
+                        child: const Text('Open Meter'),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),

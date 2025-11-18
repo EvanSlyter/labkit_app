@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import 'lab_list_screen.dart';
 import 'tutorial_screen.dart';
+import 'connect_labkit_screen.dart';
 
 class StartScreen extends StatelessWidget {
 const StartScreen({super.key});
@@ -40,10 +41,13 @@ style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
 ElevatedButton(
 onPressed: () async {
 if (!connected) {
-// Placeholder connect (replace with BLE connect later)
-await context.read<AppState>().requestConnect();
+Navigator.push(
+context,
+MaterialPageRoute(builder: (_) => const ConnectLabKitScreen()),
+);
 } else {
-await context.read<AppState>().requestDisconnect();
+// Immediate disconnect
+context.read<AppState>().clearConnectedDevice(); // or requestDisconnect()
 }
 },
 child: Text(connected ? 'Disconnect' : 'Connect'),

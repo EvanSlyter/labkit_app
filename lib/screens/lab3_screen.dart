@@ -10,8 +10,6 @@ class Lab3Screen extends StatefulWidget {
   State<Lab3Screen> createState() => _Lab3ScreenState();
 }
 
-
-
 class _Lab3ScreenState extends State<Lab3Screen> {
   // Controllers for all inputs
   final _r1Ctrl = TextEditingController();
@@ -149,18 +147,23 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                         ),
                       ),
                       ElevatedButton(
-onPressed: () {
-final app = context.read<AppState>();
-if (!app.deviceConnected) {
-ScaffoldMessenger.of(context).showSnackBar(
-const SnackBar(content: Text('Connect to use the meter.')),
-);
-return;
-}
-app.showMeterOverlay(context);
-},
-child: const Text('Open Meter'),
-),
+                        onPressed: () {
+                          FocusScope.of(
+                            context,
+                          ).unfocus(); // hide keyboard immediately
+                          final app = context.read<AppState>();
+                          if (!app.deviceConnected) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connect to use the meter.'),
+                              ),
+                            );
+                            return;
+                          }
+                          app.showMeterOverlay(context);
+                        },
+                        child: const Text('Open Meter'),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -380,18 +383,23 @@ child: const Text('Open Meter'),
                         ),
                       ),
                       ElevatedButton(
-onPressed: () {
-final app = context.read<AppState>();
-if (!app.deviceConnected) {
-ScaffoldMessenger.of(context).showSnackBar(
-const SnackBar(content: Text('Connect to use the meter.')),
-);
-return;
-}
-app.showMeterOverlay(context);
-},
-child: const Text('Open Meter'),
-),
+                        onPressed: () {
+                          FocusScope.of(
+                            context,
+                          ).unfocus(); // hide keyboard immediately
+                          final app = context.read<AppState>();
+                          if (!app.deviceConnected) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Connect to use the meter.'),
+                              ),
+                            );
+                            return;
+                          }
+                          app.showMeterOverlay(context);
+                        },
+                        child: const Text('Open Meter'),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -635,8 +643,7 @@ child: const Text('Open Meter'),
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) =>
-                                    WaveformViewer(data: w),
+                                builder: (context) => WaveformViewer(data: w),
                               ),
                             );
                           },
@@ -651,8 +658,7 @@ child: const Text('Open Meter'),
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) =>
-                                    WaveformViewer(data: w),
+                                builder: (context) => WaveformViewer(data: w),
                               ),
                             );
                           },

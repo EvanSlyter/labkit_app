@@ -130,6 +130,9 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                       ),
                       ElevatedButton(
                         onPressed: () {
+                          FocusScope.of(
+                            context,
+                          ).unfocus(); // hide keyboard immediately
                           final app = context.read<AppState>();
                           if (!app.deviceConnected) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -305,6 +308,9 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                       ),
                       ElevatedButton(
                         onPressed: () {
+                          FocusScope.of(
+                            context,
+                          ).unfocus(); // hide keyboard immediately
                           final app = context.read<AppState>();
                           if (!app.deviceConnected) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -407,6 +413,9 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                       ),
                       ElevatedButton(
                         onPressed: () {
+                          FocusScope.of(
+                            context,
+                          ).unfocus(); // hide keyboard immediately
                           final app = context.read<AppState>();
                           if (!app.deviceConnected) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -455,7 +464,7 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Part F — Coomparison',
+                    'Part F — Comparison',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),

@@ -163,6 +163,9 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                       ),
                       ElevatedButton(
                         onPressed: () {
+                          FocusScope.of(
+                            context,
+                          ).unfocus(); // hide keyboard immediately
                           final app = context.read<AppState>();
                           if (!app.deviceConnected) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -262,6 +265,9 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                       ),
                       ElevatedButton(
                         onPressed: () {
+                          FocusScope.of(
+                            context,
+                          ).unfocus(); // hide keyboard immediately
                           final app = context.read<AppState>();
                           if (!app.deviceConnected) {
                             ScaffoldMessenger.of(context).showSnackBar(
