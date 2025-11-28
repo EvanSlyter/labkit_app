@@ -133,18 +133,19 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: app.lab8.builtAND,
-                        onChanged: (v) => context
-                            .read<AppState>()
-                            .setLab8BuiltAND(v ?? false),
-                      ),
-                      const Text(
-                        'I have wired the 7408 AND gate per the diagram',
-                      ),
-                    ],
+                  CheckboxListTile(
+                    value: app.lab8.builtAND,
+                    onChanged: (v) =>
+                        context.read<AppState>().setLab8BuiltAND(v ?? false),
+                    title: const Text(
+                      'I have wired the 7408 AND gate per the diagram',
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 0,
+                    ), // use card’s padding
+                    visualDensity: VisualDensity
+                        .compact, // optional: tighter vertical spacing
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -236,17 +237,16 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: app.lab8.builtOR,
-                        onChanged: (v) =>
-                            context.read<AppState>().setLab8BuiltOR(v ?? false),
-                      ),
-                      const Text(
-                        'I have wired the 7432 OR gate per the diagram',
-                      ),
-                    ],
+                  CheckboxListTile(
+                    value: app.lab8.builtOR,
+                    onChanged: (v) =>
+                        context.read<AppState>().setLab8BuiltOR(v ?? false),
+                    title: const Text(
+                      'I have wired the 7432 OR gate per the diagram',
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 0),
+                    visualDensity: VisualDensity.compact,
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -366,6 +366,34 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
+
+                  // Open Meter overlay button (top of card)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.speed),
+                      label: const Text('Open Meter overlay'),
+                      onPressed: () {
+                        // Hide keyboard so the overlay isn’t covered
+                        FocusScope.of(context).unfocus();
+
+                        final app = context.read<AppState>();
+                        if (!app.deviceConnected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Connect to the LabKit to use the meter.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        app.showMeterOverlay(context);
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
                   const Text(
                     'Use 5 V as logic 1 and 0 V as logic 0. For each (A,B,C) combination below, record measured Vout (V). '
                     'Then compare with prelab and simulations.',
