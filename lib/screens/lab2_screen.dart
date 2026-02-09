@@ -130,7 +130,8 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Locate all required resistors and measure their resistances using the LabKit.',
+                    'Locate all required resistors and measure their resistances using the LabKit.'
+                    '\n R1=47 Ω, R2=47 Ω, R3=100 Ω, R4=220 Ω, RL=100 Ω (or closest available).',
                   ),
                   const SizedBox(height: 12),
                   Row(

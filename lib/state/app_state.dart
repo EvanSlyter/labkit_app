@@ -238,6 +238,7 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // Real BLE connect (use this when a user selected a discovered device)
   Future<void> connectToDevice({
     required String id,
     required String name,
@@ -265,7 +266,6 @@ class AppState extends ChangeNotifier {
               meterEnabled = false;
               meterReading = null;
             }
-
             notifyListeners();
           },
           onError: (_) {
@@ -277,6 +277,21 @@ class AppState extends ChangeNotifier {
             notifyListeners();
           },
         );
+  }
+
+  // Bypass / fake connect (use this for your "Skip BLE" button)
+  void setConnectedDeviceBypass({String name = 'LabKit (bypass)'}) {
+    // Ensure any real connection attempt is stopped
+    _connSub?.cancel();
+    _connSub = null;
+
+    connectedDeviceId = 'manual';
+    connectedDeviceName = name;
+
+    bleConnectionState =
+        DeviceConnectionState.disconnected; // not really connected
+    deviceConnected = true; // app-level bypass
+    notifyListeners();
   }
 
   Future<void> disconnectFromDevice() async {

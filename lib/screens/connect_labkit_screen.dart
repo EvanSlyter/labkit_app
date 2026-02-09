@@ -76,28 +76,30 @@ class _ConnectLabKitScreenState extends State<ConnectLabKitScreen> {
     _seen.clear();
     _lastSeen.clear(); // NEW
 
-    _scanSub = _ble.scanForDevices(withServices: []).listen(
-      (d) {
-        final name = d.name.trim();
-        final looksLikeLabKit =
-            name.isNotEmpty && name.toLowerCase().contains('labkit');
+    _scanSub = _ble
+        .scanForDevices(withServices: [])
+        .listen(
+          (d) {
+            final name = d.name.trim();
+            final looksLikeLabKit =
+                name.isNotEmpty && name.toLowerCase().contains('labkit');
 
-        if (looksLikeLabKit) {
-          _lastSeen[d.id] = DateTime.now(); // NEW
-          setState(() {
-            _seen[d.id] = d;
-          });
-        }
-      },
-      onError: (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Scan failed. Try again.')),
-          );
-        }
-        setState(() => _scanning = false);
-      },
-    );
+            if (looksLikeLabKit) {
+              _lastSeen[d.id] = DateTime.now(); // NEW
+              setState(() {
+                _seen[d.id] = d;
+              });
+            }
+          },
+          onError: (_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Scan failed. Try again.')),
+              );
+            }
+            setState(() => _scanning = false);
+          },
+        );
 
     // Auto-stop after 10 seconds
     Future.delayed(const Duration(seconds: 10), () {
@@ -112,20 +114,45 @@ class _ConnectLabKitScreenState extends State<ConnectLabKitScreen> {
   }
 
   Future<void> _selectDevice(DiscoveredDevice d) async {
-    // Temporary “connect”: mark AppState and pop back to Start
     _stopScan();
-    context.read<AppState>().setConnectedDevice(
-          id: d.id,
-          name: d.name.isEmpty ? 'LabKit' : d.name,
-        );
-    if (mounted) Navigator.pop(context);
+
+    final appState = context.read<AppState>();
+
+    // Start connecting (async). We’ll wait until it reports connected or disconnected.
+    await appState.connectToDevice(
+      id: d.id,
+      name: d.name.isEmpty ? 'LabKit' : d.name,
+    );
+
+    // Wait briefly for connection result (connected or disconnected/fail)
+    // If you want, adjust timeout.
+    final timeoutAt = DateTime.now().add(const Duration(seconds: 10));
+
+    while (mounted && DateTime.now().isBefore(timeoutAt)) {
+      if (appState.bleConnectionState == DeviceConnectionState.connected &&
+          appState.deviceConnected) {
+        Navigator.pop(context);
+        return;
+      }
+
+      if (appState.bleConnectionState == DeviceConnectionState.disconnected &&
+          !appState.deviceConnected) {
+        // failed (or immediately disconnected)
+        break;
+      }
+
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Failed to connect to LabKit.')),
+    );
   }
 
   void _markConnectedBypass() {
-    // Manual bypass: mark as connected and return to Start
-    context
-        .read<AppState>()
-        .setConnectedDevice(id: 'manual', name: 'LabKit (bypass)');
+    context.read<AppState>().setConnectedDeviceBypass(name: 'LabKit (bypass)');
     Navigator.pop(context);
   }
 
@@ -141,8 +168,10 @@ class _ConnectLabKitScreenState extends State<ConnectLabKitScreen> {
           // Small bypass action in the AppBar (optional)
           TextButton(
             onPressed: _markConnectedBypass,
-            child: const Text('Mark connected',
-                style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Mark connected',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -158,8 +187,11 @@ class _ConnectLabKitScreenState extends State<ConnectLabKitScreen> {
             Card(
               child: ListTile(
                 leading: Icon(
-                    _scanning ? Icons.bluetooth_searching : Icons.bluetooth),
-                title: Text(_scanning ? 'Scanning for LabKit…' : 'Scan for LabKit'),
+                  _scanning ? Icons.bluetooth_searching : Icons.bluetooth,
+                ),
+                title: Text(
+                  _scanning ? 'Scanning for LabKit…' : 'Scan for LabKit',
+                ),
                 subtitle: const Text('Keep the device powered and nearby.'),
                 trailing: _scanning
                     ? const SizedBox(
