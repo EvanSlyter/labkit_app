@@ -111,7 +111,7 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'In your component kit, find the two resistors you will need to contruct figure 1.1d (as shown below). Use the Multimeter to measure both resistor values. They are nominally 100 and 220 ohms but may vary.',
+                    'In your component kit, find the two resistors you will need to contruct the circuit (as shown below). Use the Multimeter to measure both resistor values. They are nominally 100 and 220 ohms but may vary.',
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -186,7 +186,7 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Build the circuit based on the provided diagram.',
+                    'Build the circuit based on the provided diagram (1.1d).',
                   ),
                   const SizedBox(height: 12),
                   // UPDATED earlier to Image.asset in your setup:
@@ -288,7 +288,7 @@ class _Lab1ScreenState extends State<Lab1Screen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Measure Vs using the Multimeter. Note that Vs is the nominal 5V power supply on the circuit board, but it, like the resistors, has a tolerance.\n\n'
+                    'Measure Vs using the Multimeter. (Vs is the voltage source, in this circuit it should be 5V)\n\n'
                     'From now on, whenever you are using a voltage source, be sure to measure it, as you cannot assume its value is exactly equal to its nominal value.',
                   ),
                   const SizedBox(height: 12),

@@ -14,15 +14,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/meter_overlay.dart';
 
 enum AppMode { none, free, lab }
-
 enum ToolRequirement { meter, scope }
-
 enum MeterMode { voltage, resistance, capacitance, inductance }
 
 class WaveformData {
-  final String label; // e.g., 'Vin' or 'Vout'
-  final List<double> samples; // normalized units (e.g., volts)
-  final double sampleRateHz; // e.g., 20000.0
+  final String label;
+  final List<double> samples;
+  final double sampleRateHz;
   WaveformData({
     required this.label,
     required this.samples,
@@ -67,18 +65,25 @@ class Lab3Progress {
   double? r2Ohm;
   double? r3Ohm;
   bool circuitBuilt = false;
+
   double? vinVoltDC;
   double? voutVoltDC;
   String? notesC;
+
   double? scalingFactorDC;
   String? notesD;
+
   bool acVinSaved = false;
   bool acVoutSaved = false;
+
   double? vinAmp;
   double? voutAmp;
   double? scalingFactorAC;
   String? notesF;
+
   double? timeShiftMs;
+
+  double? phaseShiftDeg;
 }
 
 class Lab4Progress {
@@ -194,11 +199,9 @@ class Lab8Progress {
   bool builtAND = false;
   bool builtOR = false;
   bool builtComplex = false;
-
   final List<double?> andVout = List<double?>.filled(4, null);
   final List<double?> orVout = List<double?>.filled(4, null);
   final List<double?> complexVout = List<double?>.filled(8, null);
-
   String? notesCompare;
 }
 
@@ -215,7 +218,6 @@ class AppState extends ChangeNotifier {
   StreamSubscription<ConnectionStateUpdate>? _connSub;
 
   DeviceConnectionState bleConnectionState = DeviceConnectionState.disconnected;
-
   bool deviceConnected = false;
   bool outputsEnabled = false;
 
@@ -223,44 +225,33 @@ class AppState extends ChangeNotifier {
   String? connectedDeviceName;
 
   bool get isBypass =>
-      deviceConnected &&
-      (connectedDeviceId == 'manual' || connectedDeviceId == null);
+      deviceConnected && (connectedDeviceId == 'manual' || connectedDeviceId == null);
 
-  // LabKit BLE UUIDs (service + control characteristic)
-  static final Uuid _serviceUuid = Uuid.parse(
-    "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
-  );
-  static final Uuid _ctrlUuid = Uuid.parse(
-    "6e400002-b5a3-f393-e0a9-e50e24dcca9e",
-  );
+  static final Uuid _serviceUuid =
+      Uuid.parse("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
+  static final Uuid _ctrlUuid =
+      Uuid.parse("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
 
   void _requireHardwareConnected() {
-    if (!deviceConnected ||
-        connectedDeviceId == null ||
-        connectedDeviceId == 'manual') {
+    if (!deviceConnected || connectedDeviceId == null || connectedDeviceId == 'manual') {
       throw StateError('LabKit hardware not connected');
     }
   }
 
   Future<void> _writeCtrlUtf8(String msg) async {
     _requireHardwareConnected();
-
     final characteristic = QualifiedCharacteristic(
       deviceId: connectedDeviceId!,
       serviceId: _serviceUuid,
       characteristicId: _ctrlUuid,
     );
-
     await _ble.writeCharacteristicWithResponse(
       characteristic,
       value: utf8.encode(msg),
     );
   }
 
-  Future<void> connectToDevice({
-    required String id,
-    required String name,
-  }) async {
+  Future<void> connectToDevice({required String id, required String name}) async {
     connectedDeviceId = id;
     connectedDeviceName = name;
 
@@ -273,28 +264,24 @@ class AppState extends ChangeNotifier {
 
     _connSub = _ble
         .connectToDevice(id: id, connectionTimeout: const Duration(seconds: 10))
-        .listen(
-          (update) {
-            bleConnectionState = update.connectionState;
-            deviceConnected =
-                (update.connectionState == DeviceConnectionState.connected);
+        .listen((update) {
+      bleConnectionState = update.connectionState;
+      deviceConnected = (update.connectionState == DeviceConnectionState.connected);
 
-            if (update.connectionState == DeviceConnectionState.disconnected) {
-              outputsEnabled = false;
-              meterEnabled = false;
-              meterReading = null;
-            }
-            notifyListeners();
-          },
-          onError: (_) {
-            bleConnectionState = DeviceConnectionState.disconnected;
-            deviceConnected = false;
-            outputsEnabled = false;
-            meterEnabled = false;
-            meterReading = null;
-            notifyListeners();
-          },
-        );
+      if (update.connectionState == DeviceConnectionState.disconnected) {
+        outputsEnabled = false;
+        meterEnabled = false;
+        meterReading = null;
+      }
+      notifyListeners();
+    }, onError: (_) {
+      bleConnectionState = DeviceConnectionState.disconnected;
+      deviceConnected = false;
+      outputsEnabled = false;
+      meterEnabled = false;
+      meterReading = null;
+      notifyListeners();
+    });
   }
 
   void setConnectedDeviceBypass({String name = 'LabKit (bypass)'}) {
@@ -312,7 +299,6 @@ class AppState extends ChangeNotifier {
   Future<void> disconnectFromDevice() async {
     await _connSub?.cancel();
     _connSub = null;
-
     bleConnectionState = DeviceConnectionState.disconnected;
     clearConnectedDevice();
   }
@@ -329,7 +315,7 @@ class AppState extends ChangeNotifier {
   }
 
   // --------------------
-  // Output control (UPDATED to actually talk to MCP4921 via BLE)
+  // Output control (MCP4921 via BLE)
   // --------------------
   void setOutputsEnabled(bool enabled) {
     outputsEnabled = enabled;
@@ -346,22 +332,10 @@ class AppState extends ChangeNotifier {
     setOutputsEnabled(false);
   }
 
-  // Optional: generic voltage setter you can reuse in other labs
   Future<void> sendSetSupplyVoltage(double volts) async {
     final v = volts.clamp(0.0, 5.0);
     await _writeCtrlUtf8('V=${v.toStringAsFixed(2)}');
     setOutputsEnabled(v > 0.0);
-  }
-
-  // Stubs for later (still present so other screens compile)
-  Future<void> sendSetOutputs({
-    required bool enable,
-    int? dc_mV,
-    int? freq_mHz,
-    int? amplitude_mV,
-    int? offset_mV,
-  }) async {
-    setOutputsEnabled(enable);
   }
 
   Future<void> sendEnableOpAmpRailsPlusMinus5() async {
@@ -370,7 +344,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> sendSetInputDc500mV() async {
-    await sendSetSupplyVoltage(0.50); // uses the helper we added earlier
+    await sendSetSupplyVoltage(0.50);
   }
 
   Future<void> sendEnableSignalGeneratorSine({
@@ -396,7 +370,7 @@ class AppState extends ChangeNotifier {
   }) async {}
 
   // --------------------
-  // Meter state (unchanged stubs)
+  // Meter state (stubs)
   // --------------------
   MeterMode meterMode = MeterMode.voltage;
   bool meterEnabled = false;
@@ -433,7 +407,7 @@ class AppState extends ChangeNotifier {
   }
 
   // --------------------
-  // Lab progress state (same structure you had)
+  // Lab progress state
   // --------------------
   final lab1 = Lab1Progress();
   final lab2 = Lab2Progress();
@@ -445,6 +419,58 @@ class AppState extends ChangeNotifier {
   final lab7 = Lab7Progress();
   final lab8 = Lab8Progress();
 
+  // --------------------
+  // Lab 6 rows + helpers
+  // --------------------
+  final List<Lab6Row> lab6Rows = [
+    for (final f in [
+      1, 2, 10, 20, 50, 100, 200, 250, 300, 350, 400, 450, 500, 800, 1000, 1200
+    ])
+      Lab6Row(fHz: f),
+  ];
+
+  void updateLab6Build({required bool built}) {
+    lab6.circuitBuilt_6 = built;
+    notifyListeners();
+  }
+
+  void updateLab6Row({required int index, double? vin_mV, double? vout_mV}) {
+    if (index < 0 || index >= lab6Rows.length) return;
+    final row = lab6Rows[index];
+
+    if (vin_mV != null) row.vin_mV = vin_mV;
+    if (vout_mV != null) row.vout_mV = vout_mV;
+
+    if ((row.vin_mV ?? 0) > 0 && row.vout_mV != null) {
+      row.ratio = row.vout_mV! / row.vin_mV!;
+    }
+    notifyListeners();
+  }
+
+  void updateLab6Bode({double? fMinus3dBApproxHz, double? R_Ohm, double? C_uF}) {
+    if (fMinus3dBApproxHz != null) lab6.fMinus3dBApproxHz = fMinus3dBApproxHz;
+    if (R_Ohm != null) lab6.R_Ohm = R_Ohm;
+    if (C_uF != null) lab6.C_uF = C_uF;
+
+    if (lab6.R_Ohm != null &&
+        lab6.C_uF != null &&
+        lab6.R_Ohm! > 0 &&
+        lab6.C_uF! > 0) {
+      final cF = lab6.C_uF! * 1e-6; // µF → F
+      lab6.f0TheoryHz = 1.0 / (2.0 * 3.141592653589793 * lab6.R_Ohm! * cF);
+    }
+    notifyListeners();
+  }
+
+  void updateLab6HighLow({bool? isHighPass, String? notes}) {
+    if (isHighPass != null) lab6.isHighPass = isHighPass;
+    if (notes != null) lab6.notesHighLow = notes;
+    notifyListeners();
+  }
+
+  // --------------------
+  // Lab 1/2/3 updates
+  // --------------------
   void updateLab1({
     double? rA1Ohm,
     double? rA2Ohm,
@@ -524,6 +550,7 @@ class AppState extends ChangeNotifier {
     double? scalingFactorAC,
     String? notesF,
     double? timeShiftMs,
+    double? phaseShiftDeg,
   }) {
     if (r1Ohm != null) lab3.r1Ohm = r1Ohm;
     if (r2Ohm != null) lab3.r2Ohm = r2Ohm;
@@ -541,10 +568,11 @@ class AppState extends ChangeNotifier {
     if (scalingFactorAC != null) lab3.scalingFactorAC = scalingFactorAC;
     if (notesF != null) lab3.notesF = notesF;
     if (timeShiftMs != null) lab3.timeShiftMs = timeShiftMs;
+    if (phaseShiftDeg != null) lab3.phaseShiftDeg = phaseShiftDeg;
     notifyListeners();
   }
 
-  // Waveforms (as in your earlier file)
+  // Lab 3 waveforms
   WaveformData? lab3VinWaveform;
   WaveformData? lab3VoutWaveform;
 
@@ -558,6 +586,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --------------------
+  // Lab 4.1 waveforms + setters (RESTORED)
+  // --------------------
   WaveformData? lab4Vin_1uF;
   WaveformData? lab4Vout_1uF;
   WaveformData? lab4Vin_10uF;
@@ -616,6 +647,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --------------------
+  // Lab 4.2 waveforms + setters (RESTORED)
+  // --------------------
   WaveformData? lab4_2VinWaveform;
   WaveformData? lab4_2VoutWaveform;
 
@@ -654,17 +688,22 @@ class AppState extends ChangeNotifier {
     if (L3_mH != null) lab4_2.L3_mH = L3_mH;
     if (RL3_Ohm != null) lab4_2.RL3_Ohm = RL3_Ohm;
     if (R_Ohm != null) lab4_2.R_Ohm = R_Ohm;
+
     if (circuitBuilt_42 != null) lab4_2.circuitBuilt_42 = circuitBuilt_42;
     if (vinSaved_42 != null) lab4_2.vinSaved_42 = vinSaved_42;
     if (voutSaved_42 != null) lab4_2.voutSaved_42 = voutSaved_42;
+
     if (tauGraph_ms != null) lab4_2.tauGraph_ms = tauGraph_ms;
     if (tauCalc_ms != null) lab4_2.tauCalc_ms = tauCalc_ms;
     if (tauPrelab_ms != null) lab4_2.tauPrelab_ms = tauPrelab_ms;
     if (notesCompare != null) lab4_2.notesCompare = notesCompare;
+
     notifyListeners();
   }
 
-  // Lab5 setters (as before)
+  // --------------------
+  // Lab 5 waveforms + setters (RESTORED)
+  // --------------------
   WaveformData? lab5VinMinWaveform;
   WaveformData? lab5VoutMinWaveform;
   WaveformData? lab5VinMaxWaveform;
@@ -721,70 +760,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Lab6 rows
-  final List<Lab6Row> lab6Rows = [
-    for (final f in [
-      1,
-      2,
-      10,
-      20,
-      50,
-      100,
-      200,
-      250,
-      300,
-      350,
-      400,
-      450,
-      500,
-      800,
-      1000,
-      1200,
-    ])
-      Lab6Row(fHz: f),
-  ];
-
-  void updateLab6Build({required bool built}) {
-    lab6.circuitBuilt_6 = built;
-    notifyListeners();
-  }
-
-  void updateLab6Row({required int index, double? vin_mV, double? vout_mV}) {
-    final row = lab6Rows[index];
-    if (vin_mV != null) row.vin_mV = vin_mV;
-    if (vout_mV != null) row.vout_mV = vout_mV;
-    if ((row.vin_mV ?? 0) > 0 && row.vout_mV != null) {
-      row.ratio = row.vout_mV! / row.vin_mV!;
-    }
-    notifyListeners();
-  }
-
-  void updateLab6Bode({
-    double? fMinus3dBApproxHz,
-    double? R_Ohm,
-    double? C_uF,
-  }) {
-    if (fMinus3dBApproxHz != null) lab6.fMinus3dBApproxHz = fMinus3dBApproxHz;
-    if (R_Ohm != null) lab6.R_Ohm = R_Ohm;
-    if (C_uF != null) lab6.C_uF = C_uF;
-
-    if (lab6.R_Ohm != null &&
-        lab6.C_uF != null &&
-        lab6.R_Ohm! > 0 &&
-        lab6.C_uF! > 0) {
-      final cF = lab6.C_uF! * 1e-6;
-      lab6.f0TheoryHz = 1.0 / (2.0 * 3.141592653589793 * lab6.R_Ohm! * cF);
-    }
-    notifyListeners();
-  }
-
-  void updateLab6HighLow({bool? isHighPass, String? notes}) {
-    if (isHighPass != null) lab6.isHighPass = isHighPass;
-    if (notes != null) lab6.notesHighLow = notes;
-    notifyListeners();
-  }
-
-  // Lab7
+  // --------------------
+  // Lab 7 waveforms + helpers
+  // --------------------
   WaveformData? lab7VinSine;
   WaveformData? lab7VoutSine;
   WaveformData? lab7VinSquare;
@@ -853,11 +831,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateLab7Square({
-    double? vinAmp_V,
-    double? voutAmp_V,
-    double? phaseDeg,
-  }) {
+  void updateLab7Square({double? vinAmp_V, double? voutAmp_V, double? phaseDeg}) {
     if (vinAmp_V != null) lab7.vinAmpSquare_V = vinAmp_V;
     if (voutAmp_V != null) lab7.voutAmpSquare_V = voutAmp_V;
     if (phaseDeg != null) lab7.phaseDegSquare = phaseDeg;
@@ -871,7 +845,9 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Lab8
+  // --------------------
+  // Lab 8 helpers
+  // --------------------
   void setLab8BuiltAND(bool v) {
     lab8.builtAND = v;
     notifyListeners();
@@ -953,13 +929,11 @@ class AppState extends ChangeNotifier {
           'notesD': lab1.notesD,
           'notesF': lab1.notesF,
         },
-        // (Keep the rest of your export mapping as needed)
       },
     };
 
-    final prettyJson = const convert.JsonEncoder.withIndent(
-      ' ',
-    ).convert(summary);
+    final prettyJson =
+        const convert.JsonEncoder.withIndent(' ').convert(summary);
     await _writeTextFile(workDir, 'summary.json', '$prettyJson\n');
 
     final archive = Archive();
@@ -978,16 +952,11 @@ class AppState extends ChangeNotifier {
     return zipPath;
   }
 
-  Future<void> _writeTextFile(
-    io.Directory dir,
-    String name,
-    String content,
-  ) async {
+  Future<void> _writeTextFile(io.Directory dir, String name, String content) async {
     final file = io.File('${dir.path}/$name');
     await file.writeAsString(content);
   }
 
-  // If you still need CSV helpers, add them back from your previous version.
   String _escapeCsv(String s) {
     if (s.contains(',') || s.contains('"') || s.contains('\n')) {
       return '"${s.replaceAll('"', '""')}"';
@@ -1035,10 +1004,7 @@ class AppState extends ChangeNotifier {
             borderRadius: BorderRadius.circular(12),
             clipBehavior: Clip.antiAlias,
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: 320,
-                maxHeight: boundedMaxH,
-              ),
+              constraints: BoxConstraints(maxWidth: 320, maxHeight: boundedMaxH),
               child: const MeterOverlayCard(),
             ),
           ),
@@ -1059,8 +1025,6 @@ class AppState extends ChangeNotifier {
   void insertCurrentReadingIntoActiveTarget() {
     final v = meterReading;
     final target = activeInsertTarget;
-    if (v != null && target != null) {
-      target(v);
-    }
+    if (v != null && target != null) target(v);
   }
 }

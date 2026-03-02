@@ -227,7 +227,7 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                   const SizedBox(height: 8),
                   const Text(
                     'Build the circuit based on the provided diagram. '
-                    'After verifying connections, enable the positive supply to +5 V.',
+                    'After verifying connections, enable a positve 5V signal to Vs.',
                   ),
                   const SizedBox(height: 12),
                   // Replace with your real asset when ready:
@@ -516,7 +516,7 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                   const SizedBox(height: 8),
                   const Text(
                     'Remove the load resistor RL from the circuit.\n'
-                    '1) Measure the open-circuit voltage VOC at the load terminals.\n'
+                    '1) Measure the open-circuit voltage VOC at the load terminals. (\n'
                     '2) Measure the short-circuit current ISC at the load terminals.\n'
                     'Record both values using the multimeter.',
                   ),
