@@ -1,12 +1,15 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../state/app_state.dart';
 import '../../widgets/connection_warning.dart';
 import '../widgets/waveform_viewer.dart';
-import 'dart:math' as math;
 
 class Lab5Screen extends StatefulWidget {
   const Lab5Screen({super.key});
+
   @override
   State<Lab5Screen> createState() => _Lab5ScreenState();
 }
@@ -15,16 +18,12 @@ class _Lab5ScreenState extends State<Lab5Screen> {
   // Controllers
   final _rPotMinCtrl = TextEditingController();
   final _rPotMaxCtrl = TextEditingController();
-
   final _notesPhaseCtrl = TextEditingController();
-
   final _timeShiftMaxCtrl = TextEditingController();
   final _phaseShiftMaxCtrl = TextEditingController();
-
   final _vrmsSourceCtrl = TextEditingController();
   final _vrmsPotCtrl = TextEditingController();
   final _vrmsCapCtrl = TextEditingController();
-
   bool? _kvlApplies;
   final _notesKVLCtrl = TextEditingController();
 
@@ -64,37 +63,135 @@ class _Lab5ScreenState extends State<Lab5Screen> {
     return double.tryParse(t);
   }
 
-  // Dummy waveforms until BLE is wired
-  WaveformData _dummyWave(String label, double amp, double phase) {
-    final n = 1024;
-    final sr = 20000.0;
-    final samples = List<double>.generate(
-      n,
-      (i) => amp * math.sin(2 * math.pi * i / 64 + phase),
-    );
-    return WaveformData(label: label, samples: samples, sampleRateHz: sr);
-  }
-
   void _save() {
     context.read<AppState>().updateLab5(
-      rPotMinOhm: _parseDouble(_rPotMinCtrl.text),
-      rPotMaxOhm: _parseDouble(_rPotMaxCtrl.text),
-      notesPhaseShift: _notesPhaseCtrl.text.trim().isEmpty
-          ? null
-          : _notesPhaseCtrl.text.trim(),
-      timeShiftMsMax: _parseDouble(_timeShiftMaxCtrl.text),
-      phaseShiftDegMax: _parseDouble(_phaseShiftMaxCtrl.text),
-      vrmsSource: _parseDouble(_vrmsSourceCtrl.text),
-      vrmsPot: _parseDouble(_vrmsPotCtrl.text),
-      vrmsCap: _parseDouble(_vrmsCapCtrl.text),
-      kvlApplies: _kvlApplies,
-      notesKVL: _notesKVLCtrl.text.trim().isEmpty
-          ? null
-          : _notesKVLCtrl.text.trim(),
+          rPotMinOhm: _parseDouble(_rPotMinCtrl.text),
+          rPotMaxOhm: _parseDouble(_rPotMaxCtrl.text),
+          notesPhaseShift:
+              _notesPhaseCtrl.text.trim().isEmpty ? null : _notesPhaseCtrl.text.trim(),
+          timeShiftMsMax: _parseDouble(_timeShiftMaxCtrl.text),
+          phaseShiftDegMax: _parseDouble(_phaseShiftMaxCtrl.text),
+          vrmsSource: _parseDouble(_vrmsSourceCtrl.text),
+          vrmsPot: _parseDouble(_vrmsPotCtrl.text),
+          vrmsCap: _parseDouble(_vrmsCapCtrl.text),
+          kvlApplies: _kvlApplies,
+          notesKVL:
+              _notesKVLCtrl.text.trim().isEmpty ? null : _notesKVLCtrl.text.trim(),
+        );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Lab 5 progress saved')));
+  }
+
+  /// Meter insert helper (Parts A & D).
+  void _attachMeterInsert({
+    required bool connected,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+    int decimals = 3,
+    double Function(double siValue)? transform,
+  }) {
+    FocusScope.of(context).unfocus();
+    final app = context.read<AppState>();
+
+    if (!connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect to use the meter.')),
+      );
+      return;
+    }
+
+    app.setActiveInsertTarget((double valueSI) {
+      final v = transform != null ? transform(valueSI) : valueSI;
+      controller.text = v.toStringAsFixed(decimals);
+      applyToState(v);
+    });
+
+    app.showMeterOverlay(context);
+  }
+
+  Widget _meterableField({
+    required bool connected,
+    required String label,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+    int decimals = 3,
+    double Function(double siValue)? transform,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: label),
+            onChanged: (t) {
+              final v = _parseDouble(t);
+              if (v != null) applyToState(v);
+            },
+          ),
+        ),
+        IconButton(
+          tooltip: 'Use meter reading',
+          icon: const Icon(Icons.download),
+          onPressed: () => _attachMeterInsert(
+            connected: connected,
+            controller: controller,
+            applyToState: applyToState,
+            decimals: decimals,
+            transform: transform,
+          ),
+        ),
+      ],
     );
-    ScaffoldMessenger.of(
+  }
+
+  /// Capture waveform via WaveformViewer and save into AppState.
+  void _captureWaveform({
+    required bool connected,
+    required String title,
+    required void Function(AppState app, WaveformData w) onSaved,
+  }) {
+    if (!connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect to capture waveforms.')),
+      );
+      return;
+    }
+
+    Navigator.push(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Lab 5 progress saved')));
+      MaterialPageRoute(
+        builder: (_) => WaveformViewer(
+          data: null, // capture mode
+          title: title,
+          onSaved: (w) {
+            final app = context.read<AppState>();
+            onSaved(app, w);
+          },
+        ),
+      ),
+    );
+  }
+
+  /// View-only open waveform.
+  void _openWaveform({
+    required WaveformData? data,
+    required String missingMsg,
+    required String title,
+  }) {
+    if (data == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(missingMsg)),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WaveformViewer(data: data, title: title),
+      ),
+    );
   }
 
   @override
@@ -115,7 +212,7 @@ class _Lab5ScreenState extends State<Lab5Screen> {
         children: [
           if (!connected) const ConnectionWarning(),
 
-          // Part A — Connect potentiometer and measure min/max resistance
+          // Part A — Potentiometer min/max resistance
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -128,7 +225,8 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Connect the potentiometer on an empty breadboard section. Measure its minimum and maximum resistance (Ω).',
+                    'Connect the potentiometer on an empty breadboard section. '
+                    'Measure its minimum and maximum resistance (Ω).',
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -145,64 +243,34 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                               : 'Connect device to use meter',
                         ),
                       ),
-                      ElevatedButton(
-                        onPressed: () {
-                          FocusScope.of(
-                            context,
-                          ).unfocus(); // hide keyboard immediately
-                          final app = context.read<AppState>();
-                          if (!app.deviceConnected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          app.showMeterOverlay(context);
-                        },
-                        child: const Text('Open Meter'),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'R_pot_min (Ω)',
                     controller: _rPotMinCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'R_pot_min (Ω)',
-                    ),
-                    onChanged: (t) {
-                      final v = _parseDouble(t);
-                      if (v != null) {
-                        context.read<AppState>().updateLab5(rPotMinOhm: v);
-                      }
-                    },
+                    decimals: 2,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab5(rPotMinOhm: v),
+                    transform: (siOhm) => siOhm,
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'R_pot_max (Ω)',
                     controller: _rPotMaxCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'R_pot_max (Ω)',
-                    ),
-                    onChanged: (t) {
-                      final v = _parseDouble(t);
-                      if (v != null) {
-                        context.read<AppState>().updateLab5(rPotMaxOhm: v);
-                      }
-                    },
+                    decimals: 2,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab5(rPotMaxOhm: v),
+                    transform: (siOhm) => siOhm,
                   ),
                 ],
               ),
             ),
           ),
 
-          // Part B — Build circuit, use actual diagram lab5_circuit1, save waveforms at min and max, compare phase shift
+          // Part B — Build circuit and save waveforms
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -220,8 +288,6 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     'Comment on how the phase shift changes with the potentiometer resistance.',
                   ),
                   const SizedBox(height: 12),
-
-                  // Diagram: lab5_circuit1.png
                   Container(
                     height: 240,
                     decoration: BoxDecoration(
@@ -237,21 +303,20 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       Checkbox(
                         value: app.lab5.circuitBuilt_5,
-                        onChanged: (v) => context.read<AppState>().updateLab5(
-                          circuitBuilt_5: v ?? false,
-                        ),
+                        onChanged: (v) =>
+                            context.read<AppState>().updateLab5(
+                                  circuitBuilt_5: v ?? false,
+                                ),
                       ),
                       const Text('I have built the circuit as shown'),
                     ],
                   ),
                   const SizedBox(height: 12),
-
                   Row(
                     children: [
                       Icon(
@@ -272,9 +337,8 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                         if (!connected) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Connect to the device to change outputs.',
-                              ),
+                              content:
+                                  Text('Connect to the device to change outputs.'),
                             ),
                           );
                           return;
@@ -282,52 +346,40 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                         if (!app.lab5.circuitBuilt_5) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Check the box after building first.',
-                              ),
+                              content:
+                                  Text('Check the box after building first.'),
                             ),
                           );
                           return;
                         }
-                        // Example: sine 1 kHz, 1.0 Vpp, 0 V offset (same specs as before)
                         context.read<AppState>().sendEnableSignalGeneratorSine(
-                          freqHz: 1000,
-                          amplitude_mVpp: 1000,
-                          offset_mV: 0,
-                        );
+                              freqHz: 1000,
+                              amplitude_mVpp: 1000,
+                              offset_mV: 0,
+                            );
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text(
-                              'Signal generator enabled (sine 1 kHz, 1.0 Vpp)',
-                            ),
+                            content:
+                                Text('Signal generator enabled (sine 1 kHz, 1.0 Vpp)'),
                           ),
                         );
                       },
                       child: const Text('Enable signal generator'),
                     ),
                   ),
-
                   const SizedBox(height: 12),
-                  // Save Vin_min / Vout_min
+                  // Save Vin_min / Vout_min via capture
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Connect to capture waveforms.'),
-                            ),
-                          );
-                          return;
-                        }
-                        context.read<AppState>().setLab5VinMinWaveform(
-                          _dummyWave('Vin_min', 1.0, 0.0),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vin_min saved')),
-                        );
-                      },
+                      onPressed: () => _captureWaveform(
+                        connected: connected,
+                        title: 'Lab 5 — Vin_min',
+                        onSaved: (app, w) {
+                          app.setLab5VinMinWaveform(w);
+                          app.lab5.vinMinSaved = true;
+                        },
+                      ),
                       child: const Text('Save Vin_min'),
                     ),
                   ),
@@ -335,47 +387,30 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Connect to capture waveforms.'),
-                            ),
-                          );
-                          return;
-                        }
-                        context.read<AppState>().setLab5VoutMinWaveform(
-                          _dummyWave('Vout_min', 0.6, 0.2),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vout_min saved')),
-                        );
-                      },
+                      onPressed: () => _captureWaveform(
+                        connected: connected,
+                        title: 'Lab 5 — Vout_min',
+                        onSaved: (app, w) {
+                          app.setLab5VoutMinWaveform(w);
+                          app.lab5.voutMinSaved = true;
+                        },
+                      ),
                       child: const Text('Save Vout_min'),
                     ),
                   ),
-
                   const SizedBox(height: 12),
-                  // Save Vin_max / Vout_max
+                  // Save Vin_max / Vout_max via capture
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Connect to capture waveforms.'),
-                            ),
-                          );
-                          return;
-                        }
-                        context.read<AppState>().setLab5VinMaxWaveform(
-                          _dummyWave('Vin_max', 1.0, 0.0),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vin_max saved')),
-                        );
-                      },
+                      onPressed: () => _captureWaveform(
+                        connected: connected,
+                        title: 'Lab 5 — Vin_max',
+                        onSaved: (app, w) {
+                          app.setLab5VinMaxWaveform(w);
+                          app.lab5.vinMaxSaved = true;
+                        },
+                      ),
                       child: const Text('Save Vin_max'),
                     ),
                   ),
@@ -383,40 +418,31 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Connect to capture waveforms.'),
-                            ),
-                          );
-                          return;
-                        }
-                        context.read<AppState>().setLab5VoutMaxWaveform(
-                          _dummyWave('Vout_max', 0.8, 0.4),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vout_max saved')),
-                        );
-                      },
+                      onPressed: () => _captureWaveform(
+                        connected: connected,
+                        title: 'Lab 5 — Vout_max',
+                        onSaved: (app, w) {
+                          app.setLab5VoutMaxWaveform(w);
+                          app.lab5.voutMaxSaved = true;
+                        },
+                      ),
                       child: const Text('Save Vout_max'),
                     ),
                   ),
-
                   const SizedBox(height: 8),
                   Builder(
                     builder: (_) {
                       final s = context.watch<AppState>().lab5;
                       return Text(
-                        'Saved: Vin_min ${s.vinMinSaved ? '✓' : '—'} | Vout_min ${s.voutMinSaved ? '✓' : '—'} | '
-                        'Vin_max ${s.vinMaxSaved ? '✓' : '—'} | Vout_max ${s.voutMaxSaved ? '✓' : '—'}',
+                        'Saved: Vin_min ${s.vinMinSaved ? '✓' : '—'} | '
+                        'Vout_min ${s.voutMinSaved ? '✓' : '—'} | '
+                        'Vin_max ${s.vinMaxSaved ? '✓' : '—'} | '
+                        'Vout_max ${s.voutMaxSaved ? '✓' : '—'}',
                         style: const TextStyle(color: Colors.grey),
                       );
                     },
                   ),
-
                   const SizedBox(height: 12),
-                  // Compare waveforms and write about phase shift change
                   TextField(
                     controller: _notesPhaseCtrl,
                     maxLines: 4,
@@ -426,45 +452,33 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     ),
                     onChanged: (t) {
                       context.read<AppState>().updateLab5(
-                        notesPhaseShift: t.trim().isEmpty ? null : t.trim(),
-                      );
+                            notesPhaseShift:
+                                t.trim().isEmpty ? null : t.trim(),
+                          );
                     },
                   ),
-
                   const SizedBox(height: 12),
-                  // Quick access to open saved waveforms
+                  // Open waveforms
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context
-                                .read<AppState>()
-                                .lab5VinMinWaveform;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab5VinMinWaveform,
+                            missingMsg: 'No Vin_min waveform saved yet.',
+                            title: 'Lab 5 — Vin_min',
+                          ),
                           child: const Text('Open Vin_min'),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context
-                                .read<AppState>()
-                                .lab5VoutMinWaveform;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab5VoutMinWaveform,
+                            missingMsg: 'No Vout_min waveform saved yet.',
+                            title: 'Lab 5 — Vout_min',
+                          ),
                           child: const Text('Open Vout_min'),
                         ),
                       ),
@@ -475,34 +489,22 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context
-                                .read<AppState>()
-                                .lab5VinMaxWaveform;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab5VinMaxWaveform,
+                            missingMsg: 'No Vin_max waveform saved yet.',
+                            title: 'Lab 5 — Vin_max',
+                          ),
                           child: const Text('Open Vin_max'),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context
-                                .read<AppState>()
-                                .lab5VoutMaxWaveform;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab5VoutMaxWaveform,
+                            missingMsg: 'No Vout_max waveform saved yet.',
+                            title: 'Lab 5 — Vout_max',
+                          ),
                           child: const Text('Open Vout_max'),
                         ),
                       ),
@@ -513,7 +515,7 @@ class _Lab5ScreenState extends State<Lab5Screen> {
             ),
           ),
 
-          // Part C — Analyze Vin_max and Vout_max (time shift and phase shift)
+          // Part C — Analyze Vin_max and Vout_max
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -533,34 +535,22 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context
-                                .read<AppState>()
-                                .lab5VinMaxWaveform;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab5VinMaxWaveform,
+                            missingMsg: 'No Vin_max waveform saved yet.',
+                            title: 'Lab 5 — Vin_max',
+                          ),
                           child: const Text('Open Vin_max'),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context
-                                .read<AppState>()
-                                .lab5VoutMaxWaveform;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab5VoutMaxWaveform,
+                            missingMsg: 'No Vout_max waveform saved yet.',
+                            title: 'Lab 5 — Vout_max',
+                          ),
                           child: const Text('Open Vout_max'),
                         ),
                       ),
@@ -569,34 +559,34 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _timeShiftMaxCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'Measured time shift (ms)',
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
                       if (v != null) {
-                        context.read<AppState>().updateLab5(timeShiftMsMax: v);
+                        context
+                            .read<AppState>()
+                            .updateLab5(timeShiftMsMax: v);
                       }
                     },
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _phaseShiftMaxCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'Calculated phase shift (degrees)',
                     ),
                     onChanged: (t) {
                       final v = _parseDouble(t);
                       if (v != null) {
-                        context.read<AppState>().updateLab5(
-                          phaseShiftDegMax: v,
-                        );
+                        context
+                            .read<AppState>()
+                            .updateLab5(phaseShiftDegMax: v);
                       }
                     },
                   ),
@@ -605,7 +595,7 @@ class _Lab5ScreenState extends State<Lab5Screen> {
             ),
           ),
 
-          // Part D — Measure RMS voltages (source, potentiometer, capacitor)
+          // Part D — RMS measurements (meter-insertable)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -635,80 +625,44 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                               : 'Connect device to use meter',
                         ),
                       ),
-                      ElevatedButton(
-                        onPressed: () {
-                          FocusScope.of(
-                            context,
-                          ).unfocus(); // hide keyboard immediately
-                          final app = context.read<AppState>();
-                          if (!app.deviceConnected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          app.showMeterOverlay(context);
-                        },
-                        child: const Text('Open Meter'),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'V_RMS (source, V)',
                     controller: _vrmsSourceCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'V_RMS (source, V)',
-                    ),
-                    onChanged: (t) {
-                      final v = _parseDouble(t);
-                      if (v != null) {
-                        context.read<AppState>().updateLab5(vrmsSource: v);
-                      }
-                    },
+                    decimals: 3,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab5(vrmsSource: v),
+                    transform: (siV) => siV,
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'V_RMS (potentiometer, V)',
                     controller: _vrmsPotCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'V_RMS (potentiometer, V)',
-                    ),
-                    onChanged: (t) {
-                      final v = _parseDouble(t);
-                      if (v != null) {
-                        context.read<AppState>().updateLab5(vrmsPot: v);
-                      }
-                    },
+                    decimals: 3,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab5(vrmsPot: v),
+                    transform: (siV) => siV,
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'V_RMS (capacitor, V)',
                     controller: _vrmsCapCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'V_RMS (capacitor, V)',
-                    ),
-                    onChanged: (t) {
-                      final v = _parseDouble(t);
-                      if (v != null) {
-                        context.read<AppState>().updateLab5(vrmsCap: v);
-                      }
-                    },
+                    decimals: 3,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab5(vrmsCap: v),
+                    transform: (siV) => siV,
                   ),
                 ],
               ),
             ),
           ),
 
-          // Part E — KVL check and missing info
+          // Part E — KVL check and notes
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -724,20 +678,16 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     'Does KVL apply to your measurements from Part C? If not, what information might be missing?',
                   ),
                   const SizedBox(height: 12),
-
-                  // Yes / No checkboxes (mutually exclusive)
                   CheckboxListTile(
                     title: const Text('Yes'),
                     value: _kvlApplies == true,
                     onChanged: (checked) {
                       setState(() {
-                        // If user checks Yes, set true; if they uncheck, clear selection
                         _kvlApplies = (checked ?? false) ? true : null;
                       });
-                      // Persist when a definite choice is made; clear if null
-                      context.read<AppState>().updateLab5(
-                        kvlApplies: _kvlApplies,
-                      );
+                      context
+                          .read<AppState>()
+                          .updateLab5(kvlApplies: _kvlApplies);
                     },
                     controlAffinity: ListTileControlAffinity.leading,
                   ),
@@ -746,16 +696,14 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     value: _kvlApplies == false && _kvlApplies != null,
                     onChanged: (checked) {
                       setState(() {
-                        // If user checks No, set false; if they uncheck, clear selection
                         _kvlApplies = (checked ?? false) ? false : null;
                       });
-                      context.read<AppState>().updateLab5(
-                        kvlApplies: _kvlApplies,
-                      );
+                      context
+                          .read<AppState>()
+                          .updateLab5(kvlApplies: _kvlApplies);
                     },
                     controlAffinity: ListTileControlAffinity.leading,
                   ),
-
                   const SizedBox(height: 12),
                   TextField(
                     controller: _notesKVLCtrl,
@@ -766,8 +714,8 @@ class _Lab5ScreenState extends State<Lab5Screen> {
                     ),
                     onChanged: (t) {
                       context.read<AppState>().updateLab5(
-                        notesKVL: t.trim().isEmpty ? null : t.trim(),
-                      );
+                            notesKVL: t.trim().isEmpty ? null : t.trim(),
+                          );
                     },
                   ),
                 ],

@@ -1,12 +1,15 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../state/app_state.dart';
 import '../../widgets/connection_warning.dart';
 import '../widgets/waveform_viewer.dart';
-import 'dart:math' as math;
 
 class Lab4_1Screen extends StatefulWidget {
   const Lab4_1Screen({super.key});
+
   @override
   State<Lab4_1Screen> createState() => _Lab4_1ScreenState();
 }
@@ -44,25 +47,126 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
 
   void _save() {
     context.read<AppState>().updateLab4(
-      tauMs: _parseDouble(_tauCtrl.text),
-      notesCompare: _notesCtrl.text.trim().isEmpty
-          ? null
-          : _notesCtrl.text.trim(),
-    );
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Lab 4.1 progress saved')));
+          tauMs: _parseDouble(_tauCtrl.text),
+          notesCompare:
+              _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+          rOhm_A1: _parseDouble(_rA1Ctrl.text),
+          c_uF_A1: _parseDouble(_cA1Ctrl.text),
+        );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Lab 4.1 progress saved')));
   }
 
-  // Helper to add dummy data until BLE is wired
-  WaveformData _dummyWave(String label, double amp, double phase) {
-    final n = 1024;
-    final sr = 20000.0;
-    final samples = List<double>.generate(
-      n,
-      (i) => amp * math.sin(2 * math.pi * i / 64 + phase),
+  /// Meter insert for Part A fields.
+  void _attachMeterInsertA({
+    required bool connected,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+    int decimals = 2,
+    double Function(double siValue)? transform,
+  }) {
+    FocusScope.of(context).unfocus();
+    final app = context.read<AppState>();
+
+    if (!connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect to use the meter.')),
+      );
+      return;
+    }
+
+    app.setActiveInsertTarget((double valueSI) {
+      final v = transform != null ? transform(valueSI) : valueSI;
+      controller.text = v.toStringAsFixed(decimals);
+      applyToState(v);
+    });
+
+    app.showMeterOverlay(context);
+  }
+
+  Widget _meterableFieldA({
+    required bool connected,
+    required String label,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+    int decimals = 2,
+    double Function(double siValue)? transform,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: label),
+            onChanged: (t) {
+              final v = _parseDouble(t);
+              if (v != null) applyToState(v);
+            },
+          ),
+        ),
+        IconButton(
+          tooltip: 'Use meter reading',
+          icon: const Icon(Icons.download),
+          onPressed: () => _attachMeterInsertA(
+            connected: connected,
+            controller: controller,
+            applyToState: applyToState,
+            decimals: decimals,
+            transform: transform,
+          ),
+        ),
+      ],
     );
-    return WaveformData(label: label, samples: samples, sampleRateHz: sr);
+  }
+
+  /// Open WaveformViewer in capture mode to save into AppState.
+  void _captureWaveform({
+    required bool connected,
+    required String title,
+    required void Function(AppState app, WaveformData w) onSaved,
+  }) {
+    if (!connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect to capture waveforms.')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WaveformViewer(
+          data: null, // capture mode
+          title: title,
+          onSaved: (w) {
+            final app = context.read<AppState>();
+            onSaved(app, w);
+          },
+        ),
+      ),
+    );
+  }
+
+  /// View-only open of saved waveform.
+  void _openWaveform({
+    required WaveformData? data,
+    required String missingMsg,
+    required String title,
+  }) {
+    if (data == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(missingMsg)),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WaveformViewer(data: data, title: title),
+      ),
+    );
   }
 
   @override
@@ -83,7 +187,7 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
         children: [
           if (!connected) const ConnectionWarning(),
 
-          // Part A — Build circuit 4.1
+          // Part A — Record component values
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -95,94 +199,47 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-
-                  // Open Meter overlay button (top of card)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.speed),
-                      label: const Text('Open Meter overlay'),
-                      onPressed: () {
-                        // Hide the keyboard so the overlay is visible
-                        FocusScope.of(context).unfocus();
-
-                        final app = context.read<AppState>();
-                        if (!app.deviceConnected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Connect to the LabKit to use the meter.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-                        app.showMeterOverlay(context);
-                      },
-                    ),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.speed,
+                        color: connected ? Colors.blue : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          connected
+                              ? 'Meter available'
+                              : 'Connect device to use meter',
+                        ),
+                      ),
+                    ],
                   ),
-
                   const SizedBox(height: 12),
                   const Text(
                     'Record the resistor and capacitor values used in Circuit 4.1.',
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Resistor R (Ω)
-                  TextField(
+                  _meterableFieldA(
+                    connected: connected,
+                    label: 'Resistor R (Ω)',
                     controller: _rA1Ctrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Resistor R (Ω)',
-                    ),
-                    onTap: () {
-                      // Insert target: meter reading in SI (ohms)
-                      context.read<AppState>().setActiveInsertTarget((valueSI) {
-                        final ohms =
-                            valueSI; // AppState.meterReading = Ω in resistance mode
-                        _rA1Ctrl.text = ohms.toStringAsFixed(2);
-                        context.read<AppState>().updateLab4(rOhm_A1: ohms);
-                      });
-                    },
-                    onChanged: (text) {
-                      final v = double.tryParse(text);
-                      if (v != null)
-                        context.read<AppState>().updateLab4(rOhm_A1: v);
-                    },
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab4(rOhm_A1: v),
+                    transform: (siOhm) => siOhm,
                   ),
-
                   const SizedBox(height: 8),
-
-                  // Capacitor C (µF)
-                  TextField(
+                  _meterableFieldA(
+                    connected: connected,
+                    label: 'Capacitor C (µF)',
                     controller: _cA1Ctrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Capacitor C (µF)',
-                    ),
-                    onTap: () {
-                      // Insert target: meter reading in SI (farads) → convert to µF
-                      context.read<AppState>().setActiveInsertTarget((valueSI) {
-                        final uF = valueSI * 1e6; // F → µF
-                        _cA1Ctrl.text = uF.toStringAsFixed(2);
-                        context.read<AppState>().updateLab4(c_uF_A1: uF);
-                      });
-                    },
-                    onChanged: (text) {
-                      final v = double.tryParse(text);
-                      if (v != null)
-                        context.read<AppState>().updateLab4(c_uF_A1: v);
-                    },
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab4(c_uF_A1: v),
+                    transform: (siF) => siF * 1e6, // F → µF
                   ),
-
                   const SizedBox(height: 8),
                   const Text(
-                    'Tip: Tap the field first to target it, then open the meter and press “Insert into field”.',
+                    'Tip: Tap the download icon next to a field, then use the meter and press “Insert into field”.',
                     style: TextStyle(color: Colors.grey),
                   ),
                 ],
@@ -190,6 +247,7 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
             ),
           ),
 
+          // Part A.2 — Build circuit and enable signal generator
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -206,8 +264,6 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     'Enable the signal generator with the specified output.',
                   ),
                   const SizedBox(height: 12),
-
-                  // Diagram (lab4_circuit1.png)
                   Container(
                     height: 240,
                     decoration: BoxDecoration(
@@ -223,29 +279,24 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       Checkbox(
                         value: context.watch<AppState>().lab4_1.circuitBuilt_41,
-                        onChanged: (v) => context.read<AppState>().updateLab4(
-                          circuitBuilt_41: v ?? false,
-                        ),
+                        onChanged: (v) => context
+                            .read<AppState>()
+                            .updateLab4(circuitBuilt_41: v ?? false),
                       ),
                       const Text('I have built the circuit as shown'),
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  // Header label
                   Row(
                     children: [
                       Icon(
                         Icons.ssid_chart,
-                        color: context.watch<AppState>().deviceConnected
-                            ? Colors.green
-                            : Colors.grey,
+                        color: connected ? Colors.green : Colors.grey,
                       ),
                       const SizedBox(width: 8),
                       const Expanded(
@@ -254,21 +305,17 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     ],
                   ),
                   const SizedBox(height: 8),
-
-                  // Enable signal generator with specific output (example settings)
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                        final connected = context
-                            .read<AppState>()
-                            .deviceConnected;
+                        final connected =
+                            context.read<AppState>().deviceConnected;
                         if (!connected) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Connect to the device to change outputs.',
-                              ),
+                              content:
+                                  Text('Connect to the device to change outputs.'),
                             ),
                           );
                           return;
@@ -276,24 +323,21 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                         if (!context.read<AppState>().lab4_1.circuitBuilt_41) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Check the box after building first.',
-                              ),
+                              content:
+                                  Text('Check the box after building first.'),
                             ),
                           );
                           return;
                         }
-                        // Example output: sine, 1 kHz, 1.0 Vpp, 0 V offset
                         context.read<AppState>().sendEnableSignalGeneratorSine(
-                          freqHz: 1000,
-                          amplitude_mVpp: 1000,
-                          offset_mV: 0,
-                        );
+                              freqHz: 1000,
+                              amplitude_mVpp: 1000,
+                              offset_mV: 0,
+                            );
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              'Signal generator enabled (sine 1 kHz, 1.0 Vpp)',
-                            ),
+                                'Signal generator enabled (sine 1 kHz, 1.0 Vpp)'),
                           ),
                         );
                       },
@@ -303,21 +347,17 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-
-                  // Disable outputs (safety)
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () {
-                        final connected = context
-                            .read<AppState>()
-                            .deviceConnected;
+                        final connected =
+                            context.read<AppState>().deviceConnected;
                         if (!connected) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Connect to the device to change outputs.',
-                              ),
+                              content:
+                                  Text('Connect to the device to change outputs.'),
                             ),
                           );
                           return;
@@ -332,7 +372,7 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
             ),
           ),
 
-          // Part B — Save input/output waveforms (1 µF)
+          // Part B — Save Vin/Vout (1 µF)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -351,23 +391,14 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Connect to capture waveforms.'),
-                            ),
-                          );
-                          return;
-                        }
-                        // TODO: replace with real BLE snapshot for Vin (1 µF)
-                        context.read<AppState>().setLab4Vin_1uF(
-                          _dummyWave('Vin (1 µF)', 1.0, 0.0),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vin (1 µF) saved')),
-                        );
-                      },
+                      onPressed: () => _captureWaveform(
+                        connected: connected,
+                        title: 'Lab 4.1 — Vin (1 µF)',
+                        onSaved: (app, w) {
+                          app.setLab4Vin_1uF(w);
+                          app.lab4_1.vinSaved_1uF = true;
+                        },
+                      ),
                       child: const Text('Save Vin (1 µF)'),
                     ),
                   ),
@@ -375,29 +406,21 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Connect to capture waveforms.'),
-                            ),
-                          );
-                          return;
-                        }
-                        // TODO: replace with real BLE snapshot for Vout (1 µF)
-                        context.read<AppState>().setLab4Vout_1uF(
-                          _dummyWave('Vout (1 µF)', 0.7, 0.2),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vout (1 µF) saved')),
-                        );
-                      },
+                      onPressed: () => _captureWaveform(
+                        connected: connected,
+                        title: 'Lab 4.1 — Vout (1 µF)',
+                        onSaved: (app, w) {
+                          app.setLab4Vout_1uF(w);
+                          app.lab4_1.voutSaved_1uF = true;
+                        },
+                      ),
                       child: const Text('Save Vout (1 µF)'),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Saved: Vin ${app.lab4_1.vinSaved_1uF ? '✓' : '—'} | Vout ${app.lab4_1.voutSaved_1uF ? '✓' : '—'}',
+                    'Saved: Vin ${app.lab4_1.vinSaved_1uF ? '✓' : '—'} | '
+                    'Vout ${app.lab4_1.voutSaved_1uF ? '✓' : '—'}',
                     style: const TextStyle(color: Colors.grey),
                   ),
                 ],
@@ -405,7 +428,7 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
             ),
           ),
 
-          // Part C — Replace 1 µF with 10 µF and save waveforms
+          // Part C — Save Vin/Vout (10 µF)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -424,22 +447,14 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Connect to capture waveforms.'),
-                            ),
-                          );
-                          return;
-                        }
-                        context.read<AppState>().setLab4Vin_10uF(
-                          _dummyWave('Vin (10 µF)', 1.0, 0.0),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vin (10 µF) saved')),
-                        );
-                      },
+                      onPressed: () => _captureWaveform(
+                        connected: connected,
+                        title: 'Lab 4.1 — Vin (10 µF)',
+                        onSaved: (app, w) {
+                          app.setLab4Vin_10uF(w);
+                          app.lab4_1.vinSaved_10uF = true;
+                        },
+                      ),
                       child: const Text('Save Vin (10 µF)'),
                     ),
                   ),
@@ -447,28 +462,21 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Connect to capture waveforms.'),
-                            ),
-                          );
-                          return;
-                        }
-                        context.read<AppState>().setLab4Vout_10uF(
-                          _dummyWave('Vout (10 µF)', 0.8, 0.4),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vout (10 µF) saved')),
-                        );
-                      },
+                      onPressed: () => _captureWaveform(
+                        connected: connected,
+                        title: 'Lab 4.1 — Vout (10 µF)',
+                        onSaved: (app, w) {
+                          app.setLab4Vout_10uF(w);
+                          app.lab4_1.voutSaved_10uF = true;
+                        },
+                      ),
                       child: const Text('Save Vout (10 µF)'),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Saved: Vin ${app.lab4_1.vinSaved_10uF ? '✓' : '—'} | Vout ${app.lab4_1.voutSaved_10uF ? '✓' : '—'}',
+                    'Saved: Vin ${app.lab4_1.vinSaved_10uF ? '✓' : '—'} | '
+                    'Vout ${app.lab4_1.voutSaved_10uF ? '✓' : '—'}',
                     style: const TextStyle(color: Colors.grey),
                   ),
                 ],
@@ -476,7 +484,7 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
             ),
           ),
 
-          // Part D — Replace 10 µF with 100 µF and save waveforms
+          // Part D — Save Vin/Vout (100 µF)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -495,22 +503,14 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Connect to capture waveforms.'),
-                            ),
-                          );
-                          return;
-                        }
-                        context.read<AppState>().setLab4Vin_100uF(
-                          _dummyWave('Vin (100 µF)', 1.0, 0.0),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vin (100 µF) saved')),
-                        );
-                      },
+                      onPressed: () => _captureWaveform(
+                        connected: connected,
+                        title: 'Lab 4.1 — Vin (100 µF)',
+                        onSaved: (app, w) {
+                          app.setLab4Vin_100uF(w);
+                          app.lab4_1.vinSaved_100uF = true;
+                        },
+                      ),
                       child: const Text('Save Vin (100 µF)'),
                     ),
                   ),
@@ -518,28 +518,21 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Connect to capture waveforms.'),
-                            ),
-                          );
-                          return;
-                        }
-                        context.read<AppState>().setLab4Vout_100uF(
-                          _dummyWave('Vout (100 µF)', 0.9, 0.7),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vout (100 µF) saved')),
-                        );
-                      },
+                      onPressed: () => _captureWaveform(
+                        connected: connected,
+                        title: 'Lab 4.1 — Vout (100 µF)',
+                        onSaved: (app, w) {
+                          app.setLab4Vout_100uF(w);
+                          app.lab4_1.voutSaved_100uF = true;
+                        },
+                      ),
                       child: const Text('Save Vout (100 µF)'),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Saved: Vin ${app.lab4_1.vinSaved_100uF ? '✓' : '—'} | Vout ${app.lab4_1.voutSaved_100uF ? '✓' : '—'}',
+                    'Saved: Vin ${app.lab4_1.vinSaved_100uF ? '✓' : '—'} | '
+                    'Vout ${app.lab4_1.voutSaved_100uF ? '✓' : '—'}',
                     style: const TextStyle(color: Colors.grey),
                   ),
                 ],
@@ -547,7 +540,7 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
             ),
           ),
 
-          // Part E — Measure tau using τ = R × C
+          // Part E — τ = R × C
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -565,9 +558,8 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _tauCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(labelText: 'τ (ms)'),
                     onChanged: (text) {
                       final v = _parseDouble(text);
@@ -581,7 +573,7 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
             ),
           ),
 
-          // Part F — Compare saved waveforms and explain differences using τ
+          // Part F — Compare waveforms
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -597,102 +589,90 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     'Open the saved waveforms for each capacitor value and explain differences using τ.',
                   ),
                   const SizedBox(height: 12),
+
+                  // 1 µF
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context.read<AppState>().lab4Vin_1uF;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab4Vin_1uF,
+                            missingMsg:
+                                'No Vin (1 µF) waveform saved yet.',
+                            title: 'Lab 4.1 — Vin (1 µF)',
+                          ),
                           child: const Text('Open Vin (1 µF)'),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context.read<AppState>().lab4Vout_1uF;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab4Vout_1uF,
+                            missingMsg:
+                                'No Vout (1 µF) waveform saved yet.',
+                            title: 'Lab 4.1 — Vout (1 µF)',
+                          ),
                           child: const Text('Open Vout (1 µF)'),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
+
+                  // 10 µF
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context.read<AppState>().lab4Vin_10uF;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab4Vin_10uF,
+                            missingMsg:
+                                'No Vin (10 µF) waveform saved yet.',
+                            title: 'Lab 4.1 — Vin (10 µF)',
+                          ),
                           child: const Text('Open Vin (10 µF)'),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context.read<AppState>().lab4Vout_10uF;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab4Vout_10uF,
+                            missingMsg:
+                                'No Vout (10 µF) waveform saved yet.',
+                            title: 'Lab 4.1 — Vout (10 µF)',
+                          ),
                           child: const Text('Open Vout (10 µF)'),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
+
+                  // 100 µF
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context.read<AppState>().lab4Vin_100uF;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab4Vin_100uF,
+                            missingMsg:
+                                'No Vin (100 µF) waveform saved yet.',
+                            title: 'Lab 4.1 — Vin (100 µF)',
+                          ),
                           child: const Text('Open Vin (100 µF)'),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context.read<AppState>().lab4Vout_100uF;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => WaveformViewer(data: w),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openWaveform(
+                            data: context.read<AppState>().lab4Vout_100uF,
+                            missingMsg:
+                                'No Vout (100 µF) waveform saved yet.',
+                            title: 'Lab 4.1 — Vout (100 µF)',
+                          ),
                           child: const Text('Open Vout (100 µF)'),
                         ),
                       ),
@@ -707,8 +687,9 @@ class _Lab4_1ScreenState extends State<Lab4_1Screen> {
                     ),
                     onChanged: (text) {
                       context.read<AppState>().updateLab4(
-                        notesCompare: text.trim().isEmpty ? null : text.trim(),
-                      );
+                            notesCompare:
+                                text.trim().isEmpty ? null : text.trim(),
+                          );
                     },
                   ),
                 ],

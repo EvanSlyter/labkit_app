@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../state/app_state.dart';
 import '../../widgets/connection_warning.dart';
 
 class Lab8Screen extends StatefulWidget {
   const Lab8Screen({super.key});
+
   @override
   State<Lab8Screen> createState() => _Lab8ScreenState();
 }
@@ -13,13 +15,10 @@ class _Lab8ScreenState extends State<Lab8Screen> {
   // AND table (4 rows)
   final List<TextEditingController> _andVoutCtrls =
       List<TextEditingController>.generate(4, (i) => TextEditingController());
-
   final List<TextEditingController> _orVoutCtrls =
       List<TextEditingController>.generate(4, (i) => TextEditingController());
-
   final List<TextEditingController> _complexVoutCtrls =
       List<TextEditingController>.generate(8, (i) => TextEditingController());
-
   final TextEditingController _notesCtrl = TextEditingController();
 
   // Labels for rows
@@ -29,14 +28,12 @@ class _Lab8ScreenState extends State<Lab8Screen> {
     'A = 5 V, B = 0 V',
     'A = 5 V, B = 5 V',
   ];
-
   final List<String> _orLabels = const [
     'A = 0 V, B = 0 V',
     'A = 0 V, B = 5 V',
     'A = 5 V, B = 0 V',
     'A = 5 V, B = 5 V',
   ];
-
   final List<String> _complexLabels = const [
     'A = 0 V, B = 0 V, C = 0 V',
     'A = 0 V, B = 0 V, C = 5 V',
@@ -83,6 +80,131 @@ class _Lab8ScreenState extends State<Lab8Screen> {
     return double.tryParse(t);
   }
 
+  Widget _powerButtons(BuildContext context, {required bool connected}) {
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.power),
+            onPressed: !connected
+                ? null
+                : () async {
+                    try {
+                      await context.read<AppState>().sendSetPositiveSupply5V();
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Enabled +5 V')),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text('Failed to enable +5 V: $e')),
+                      );
+                    }
+                  },
+            label: const Text('Enable +5 V'),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: !connected
+                ? null
+                : () async {
+                    try {
+                      await context.read<AppState>().sendDisableOutputs();
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Outputs disabled')),
+                      );
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content:
+                                Text('Failed to disable outputs: $e')),
+                      );
+                    }
+                  },
+            child: const Text('Disable Outputs'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Meter insert helper for all Vout fields (Lab 8).
+  void _attachMeterInsert({
+    required bool connected,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+    int decimals = 3,
+  }) {
+    FocusScope.of(context).unfocus();
+    final app = context.read<AppState>();
+
+    if (!connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect to use the meter.')),
+      );
+      return;
+    }
+
+    app.setActiveInsertTarget((double valueSI) {
+      // Meter gives volts; use as-is for Vout (V).
+      final v = valueSI;
+      controller.text = v.toStringAsFixed(decimals);
+      applyToState(v);
+    });
+
+    app.showMeterOverlay(context);
+  }
+
+  Widget _truthRowMeterable({
+    required bool connected,
+    required String label,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+  }) {
+    return Row(
+      children: [
+        Expanded(child: Text(label)),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 170,
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Vout (V)'),
+                  onChanged: (text) {
+                    final v = _parseDouble(text);
+                    if (v != null) applyToState(v);
+                  },
+                ),
+              ),
+              IconButton(
+                tooltip: 'Use meter reading',
+                icon: const Icon(Icons.download),
+                onPressed: () => _attachMeterInsert(
+                  connected: connected,
+                  controller: controller,
+                  applyToState: applyToState,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
@@ -101,6 +223,32 @@ class _Lab8ScreenState extends State<Lab8Screen> {
         children: [
           if (!connected) const ConnectionWarning(),
 
+          // Disclaimer
+          Card(
+            color: const Color(0xFFFFF8E1),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Important',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'This lab uses +5 V logic power. Double-check chip orientation, wiring, and power rails before enabling power.\n'
+                    '\n'
+                    'If anything gets hot, smells, or behaves unexpectedly: disable outputs immediately and disconnect power.\n'
+                    '\n'
+                    'Additionally, there are parts of this lab where you will be applying +5V to multiple places in the circuit at once. '
+                    'In these cases, use your regular power cable as well as the permanently enabled +5V supply usually used for Op Amps.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           // Part A — AND 7408
           Card(
             child: Padding(
@@ -116,6 +264,8 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                   const Text(
                     'Use 5 V as logic 1 and 0 V as logic 0. Test inputs A/B and record the measured Vout for each combination.',
                   ),
+                  const SizedBox(height: 12),
+                  _powerButtons(context, connected: connected),
                   const SizedBox(height: 12),
                   Container(
                     height: 240,
@@ -141,19 +291,15 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                       'I have wired the 7408 AND gate per the diagram',
                     ),
                     controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 0,
-                    ), // use card’s padding
-                    visualDensity: VisualDensity
-                        .compact, // optional: tighter vertical spacing
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 0),
+                    visualDensity: VisualDensity.compact,
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Icon(
-                        Icons.speed,
-                        color: connected ? Colors.blue : Colors.grey,
-                      ),
+                      Icon(Icons.speed,
+                          color: connected ? Colors.blue : Colors.grey),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -162,42 +308,19 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                               : 'Connect device to use meter',
                         ),
                       ),
-                      ElevatedButton(
-                        onPressed: () {
-                          FocusScope.of(
-                            context,
-                          ).unfocus(); // hide keyboard immediately
-                          final app = context.read<AppState>();
-                          if (!app.deviceConnected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          app.showMeterOverlay(context);
-                        },
-                        child: const Text('Open Meter'),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   for (int i = 0; i < _andLabels.length; i++)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: _truthRow(
+                      child: _truthRowMeterable(
+                        connected: connected,
                         label: _andLabels[i],
                         controller: _andVoutCtrls[i],
-                        onChanged: (text) {
-                          final v = _parseDouble(text);
-                          if (v != null) {
-                            context.read<AppState>().updateLab8AndRow(
-                              i,
-                              voutV: v,
-                            );
-                          }
-                        },
+                        applyToState: (v) => context
+                            .read<AppState>()
+                            .updateLab8AndRow(i, voutV: v),
                       ),
                     ),
                 ],
@@ -220,6 +343,8 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                   const Text(
                     'Use 5 V as logic 1 and 0 V as logic 0. Test inputs A/B and record the measured Vout for each combination.',
                   ),
+                  const SizedBox(height: 12),
+                  _powerButtons(context, connected: connected),
                   const SizedBox(height: 12),
                   Container(
                     height: 240,
@@ -245,16 +370,15 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                       'I have wired the 7432 OR gate per the diagram',
                     ),
                     controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 0),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 0),
                     visualDensity: VisualDensity.compact,
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Icon(
-                        Icons.speed,
-                        color: connected ? Colors.blue : Colors.grey,
-                      ),
+                      Icon(Icons.speed,
+                          color: connected ? Colors.blue : Colors.grey),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -263,42 +387,19 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                               : 'Connect device to use meter',
                         ),
                       ),
-                      ElevatedButton(
-                        onPressed: () {
-                          FocusScope.of(
-                            context,
-                          ).unfocus(); // hide keyboard immediately
-                          final app = context.read<AppState>();
-                          if (!app.deviceConnected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          app.showMeterOverlay(context);
-                        },
-                        child: const Text('Open Meter'),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   for (int i = 0; i < _orLabels.length; i++)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: _truthRow(
+                      child: _truthRowMeterable(
+                        connected: connected,
                         label: _orLabels[i],
                         controller: _orVoutCtrls[i],
-                        onChanged: (text) {
-                          final v = _parseDouble(text);
-                          if (v != null) {
-                            context.read<AppState>().updateLab8OrRow(
-                              i,
-                              voutV: v,
-                            );
-                          }
-                        },
+                        applyToState: (v) => context
+                            .read<AppState>()
+                            .updateLab8OrRow(i, voutV: v),
                       ),
                     ),
                 ],
@@ -306,7 +407,7 @@ class _Lab8ScreenState extends State<Lab8Screen> {
             ),
           ),
 
-          // Part C — Complex circuit lab8_circuit3
+          // Part C — Complex circuit
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -366,54 +467,38 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-
-                  // Open Meter overlay button (top of card)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.speed),
-                      label: const Text('Open Meter overlay'),
-                      onPressed: () {
-                        // Hide keyboard so the overlay isn’t covered
-                        FocusScope.of(context).unfocus();
-
-                        final app = context.read<AppState>();
-                        if (!app.deviceConnected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Connect to the LabKit to use the meter.',
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-                        app.showMeterOverlay(context);
-                      },
+                  _powerButtons(context, connected: connected),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                    Icon(Icons.speed,
+                        color: connected ? Colors.blue : Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        connected
+                            ? 'Meter available'
+                            : 'Connect device to use meter',
+                      ),
                     ),
+                  ],
                   ),
-
                   const SizedBox(height: 12),
                   const Text(
-                    'Use 5 V as logic 1 and 0 V as logic 0. For each (A,B,C) combination below, record measured Vout (V). '
+                    'Use 5 V as logic 1 and 0 V as logic 0. For each (A,B,C) combination below, record measured Vout (V).\n'
                     'Then compare with prelab and simulations.',
                   ),
                   const SizedBox(height: 12),
                   for (int i = 0; i < _complexLabels.length; i++)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: _truthRow(
+                      child: _truthRowMeterable(
+                        connected: connected,
                         label: _complexLabels[i],
                         controller: _complexVoutCtrls[i],
-                        onChanged: (text) {
-                          final v = _parseDouble(text);
-                          if (v != null) {
-                            context.read<AppState>().updateLab8ComplexRow(
-                              i,
-                              voutV: v,
-                            );
-                          }
-                        },
+                        applyToState: (v) => context
+                            .read<AppState>()
+                            .updateLab8ComplexRow(i, voutV: v),
                       ),
                     ),
                   const SizedBox(height: 12),
@@ -424,9 +509,9 @@ class _Lab8ScreenState extends State<Lab8Screen> {
                       labelText: 'Notes: Compare with prelab and simulations',
                     ),
                     onChanged: (t) {
-                      context.read<AppState>().updateLab8Notes(
-                        t.trim().isEmpty ? null : t.trim(),
-                      );
+                      context
+                          .read<AppState>()
+                          .updateLab8Notes(t.trim().isEmpty ? null : t.trim());
                     },
                   ),
                 ],
@@ -445,9 +530,8 @@ class _Lab8ScreenState extends State<Lab8Screen> {
               ElevatedButton(
                 onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text(
-                      'Lab 8 progress saved (values persist in memory)',
-                    ),
+                    content:
+                        Text('Lab 8 progress saved (values persist in memory)'),
                   ),
                 ),
                 child: const Text('Save Progress'),
@@ -456,29 +540,6 @@ class _Lab8ScreenState extends State<Lab8Screen> {
           ),
         ],
       ),
-    );
-  }
-
-  // Simple row widget for "Label — Vout (V)"
-  Widget _truthRow({
-    required String label,
-    required TextEditingController controller,
-    required ValueChanged<String> onChanged,
-  }) {
-    return Row(
-      children: [
-        Expanded(child: Text(label)),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 140,
-          child: TextField(
-            controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Vout (V)'),
-            onChanged: onChanged,
-          ),
-        ),
-      ],
     );
   }
 }

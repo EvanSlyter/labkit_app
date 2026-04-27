@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 //import 'dart:math' as math;
 import 'state/app_state.dart'; // or ../../state/app_state.dart from /screens/labs
 //import 'screens/lab_list_screen.dart';
-import 'widgets/meter_screen.dart';
+import 'widgets/meter_overlay.dart';
 import 'screens/settings_screen.dart';
 import 'screens/start_screen.dart';
 
@@ -30,7 +30,7 @@ useMaterial3: true,
 ),
 home: const StartScreen(),
 routes: {
-'/meter': (_) => const MeterScreen(),
+'/meter': (_) => const MeterOverlayCard(),
 '/settings': (_) => const SettingsScreen(), // optional if you use it
 },
 ),

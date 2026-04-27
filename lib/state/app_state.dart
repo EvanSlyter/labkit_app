@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert' as convert;
 import 'dart:convert' show utf8;
 import 'dart:io' as io;
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
@@ -14,8 +15,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/meter_overlay.dart';
 
 enum AppMode { none, free, lab }
+
 enum ToolRequirement { meter, scope }
-enum MeterMode { voltage, resistance, capacitance, inductance }
+
+enum MeterMode { voltage, current, resistance, capacitance, inductance }
 
 class WaveformData {
   final String label;
@@ -65,24 +68,18 @@ class Lab3Progress {
   double? r2Ohm;
   double? r3Ohm;
   bool circuitBuilt = false;
-
   double? vinVoltDC;
   double? voutVoltDC;
   String? notesC;
-
   double? scalingFactorDC;
   String? notesD;
-
   bool acVinSaved = false;
   bool acVoutSaved = false;
-
   double? vinAmp;
   double? voutAmp;
   double? scalingFactorAC;
   String? notesF;
-
   double? timeShiftMs;
-
   double? phaseShiftDeg;
 }
 
@@ -90,16 +87,12 @@ class Lab4Progress {
   double? rOhm_A1;
   double? c_uF_A1;
   bool circuitBuilt_41 = false;
-
   bool vinSaved_1uF = false;
   bool voutSaved_1uF = false;
-
   bool vinSaved_10uF = false;
   bool voutSaved_10uF = false;
-
   bool vinSaved_100uF = false;
   bool voutSaved_100uF = false;
-
   double? tauMs;
   String? notesCompare;
 }
@@ -112,39 +105,29 @@ class Lab4_2Progress {
   double? L3_mH;
   double? RL3_Ohm;
   double? R_Ohm;
-
   bool circuitBuilt_42 = false;
-
   bool vinSaved_42 = false;
   bool voutSaved_42 = false;
-
   double? tauGraph_ms;
   double? tauCalc_ms;
   double? tauPrelab_ms;
-
   String? notesCompare;
 }
 
 class Lab5Progress {
   double? rPotMinOhm;
   double? rPotMaxOhm;
-
   bool circuitBuilt_5 = false;
-
   bool vinMinSaved = false;
   bool voutMinSaved = false;
   bool vinMaxSaved = false;
   bool voutMaxSaved = false;
-
   String? notesPhaseShift;
-
   double? timeShiftMsMax;
   double? phaseShiftDegMax;
-
   double? vrmsSource;
   double? vrmsPot;
   double? vrmsCap;
-
   bool? kvlApplies;
   String? notesKVL;
 }
@@ -159,12 +142,10 @@ class Lab6Row {
 
 class Lab6Progress {
   bool circuitBuilt_6 = false;
-
   double? fMinus3dBApproxHz;
   double? f0TheoryHz;
   double? R_Ohm;
   double? C_uF;
-
   bool? isHighPass;
   String? notesHighLow;
 }
@@ -175,19 +156,16 @@ class Lab7Progress {
   double? r3Ohm;
   double? c_uF;
   bool circuitBuilt_7 = false;
-
   bool vinSineSaved = false;
   bool voutSineSaved = false;
   double? vinAmpSine_V;
   double? voutAmpSine_V;
   double? phaseDegSine;
-
   bool vinSquareSaved = false;
   bool voutSquareSaved = false;
   double? vinAmpSquare_V;
   double? voutAmpSquare_V;
   double? phaseDegSquare;
-
   bool vinTriSaved = false;
   bool voutTriSaved = false;
   double? vinAmpTri_V;
@@ -217,23 +195,37 @@ class AppState extends ChangeNotifier {
   final FlutterReactiveBle _ble = FlutterReactiveBle();
   StreamSubscription<ConnectionStateUpdate>? _connSub;
 
+  // NEW: meter notify subscription
+  StreamSubscription<List<int>>? _meterSub;
+
   DeviceConnectionState bleConnectionState = DeviceConnectionState.disconnected;
   bool deviceConnected = false;
   bool outputsEnabled = false;
-
   String? connectedDeviceId;
   String? connectedDeviceName;
 
-  bool get isBypass =>
-      deviceConnected && (connectedDeviceId == 'manual' || connectedDeviceId == null);
 
-  static final Uuid _serviceUuid =
-      Uuid.parse("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
-  static final Uuid _ctrlUuid =
-      Uuid.parse("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
+
+  bool get isBypass =>
+      deviceConnected &&
+      (connectedDeviceId == 'manual' || connectedDeviceId == null);
+
+  static final Uuid _serviceUuid = Uuid.parse(
+    "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
+  );
+  static final Uuid _ctrlUuid = Uuid.parse(
+    "6e400002-b5a3-f393-e0a9-e50e24dcca9e",
+  );
+
+  // NEW: meter notify characteristic UUID (binary packets)
+  static final Uuid _meterUuid = Uuid.parse(
+    "6e400004-b5a3-f393-e0a9-e50e24dcca9e",
+  );
 
   void _requireHardwareConnected() {
-    if (!deviceConnected || connectedDeviceId == null || connectedDeviceId == 'manual') {
+    if (!deviceConnected ||
+        connectedDeviceId == null ||
+        connectedDeviceId == 'manual') {
       throw StateError('LabKit hardware not connected');
     }
   }
@@ -251,12 +243,63 @@ class AppState extends ChangeNotifier {
     );
   }
 
-  Future<void> connectToDevice({required String id, required String name}) async {
+  void _startMeterNotifications() {
+    if (!deviceConnected ||
+        connectedDeviceId == null ||
+        connectedDeviceId == 'manual')
+      return;
+    if (_meterSub != null) return;
+
+    final qc = QualifiedCharacteristic(
+      deviceId: connectedDeviceId!,
+      serviceId: _serviceUuid,
+      characteristicId: _meterUuid,
+    );
+
+    _meterSub = _ble
+        .subscribeToCharacteristic(qc)
+        .listen(
+          (data) {
+            // ESP32 sends 10 bytes:
+            // [0]=0x01, [1]=mode, [2..5]=float32 LE volts, [6..9]=float32 LE amps
+            if (data.length != 10) return;
+            if (data[0] != 0x01) return;
+
+            final mode = data[1];
+            final bd = ByteData.sublistView(Uint8List.fromList(data));
+            final volts = bd.getFloat32(2, Endian.little);
+            final amps = bd.getFloat32(6, Endian.little);
+
+            meterEnabled = true;
+
+            // ESP32 currently uses mode=0 for voltage
+            if (mode == 0) {
+              meterCurrentA = amps;
+              updateMeterReading(volts);
+            }
+          },
+          onError: (_) {
+            unawaited(_stopMeterNotifications());
+          },
+        );
+  }
+
+  Future<void> _stopMeterNotifications() async {
+    await _meterSub?.cancel();
+    _meterSub = null;
+  }
+
+  Future<void> connectToDevice({
+    required String id,
+    required String name,
+  }) async {
     connectedDeviceId = id;
     connectedDeviceName = name;
 
     await _connSub?.cancel();
     _connSub = null;
+
+    await _stopMeterNotifications();
 
     bleConnectionState = DeviceConnectionState.connecting;
     deviceConnected = false;
@@ -264,33 +307,45 @@ class AppState extends ChangeNotifier {
 
     _connSub = _ble
         .connectToDevice(id: id, connectionTimeout: const Duration(seconds: 10))
-        .listen((update) {
-      bleConnectionState = update.connectionState;
-      deviceConnected = (update.connectionState == DeviceConnectionState.connected);
+        .listen(
+          (update) {
+            bleConnectionState = update.connectionState;
+            deviceConnected =
+                (update.connectionState == DeviceConnectionState.connected);
 
-      if (update.connectionState == DeviceConnectionState.disconnected) {
-        outputsEnabled = false;
-        meterEnabled = false;
-        meterReading = null;
-      }
-      notifyListeners();
-    }, onError: (_) {
-      bleConnectionState = DeviceConnectionState.disconnected;
-      deviceConnected = false;
-      outputsEnabled = false;
-      meterEnabled = false;
-      meterReading = null;
-      notifyListeners();
-    });
+            if (update.connectionState == DeviceConnectionState.connected) {
+              _startMeterNotifications();
+            }
+
+            if (update.connectionState == DeviceConnectionState.disconnected) {
+              unawaited(_stopMeterNotifications());
+              outputsEnabled = false;
+              meterEnabled = false;
+              meterReading = null;
+            }
+
+            notifyListeners();
+          },
+          onError: (_) {
+            unawaited(_stopMeterNotifications());
+            bleConnectionState = DeviceConnectionState.disconnected;
+            deviceConnected = false;
+            outputsEnabled = false;
+            meterEnabled = false;
+            meterReading = null;
+            notifyListeners();
+          },
+        );
   }
 
   void setConnectedDeviceBypass({String name = 'LabKit (bypass)'}) {
     _connSub?.cancel();
     _connSub = null;
 
+    unawaited(_stopMeterNotifications());
+
     connectedDeviceId = 'manual';
     connectedDeviceName = name;
-
     bleConnectionState = DeviceConnectionState.disconnected;
     deviceConnected = true;
     notifyListeners();
@@ -299,6 +354,9 @@ class AppState extends ChangeNotifier {
   Future<void> disconnectFromDevice() async {
     await _connSub?.cancel();
     _connSub = null;
+
+    await _stopMeterNotifications();
+
     bleConnectionState = DeviceConnectionState.disconnected;
     clearConnectedDevice();
   }
@@ -308,6 +366,7 @@ class AppState extends ChangeNotifier {
   }
 
   void clearConnectedDevice() {
+    unawaited(_stopMeterNotifications());
     connectedDeviceId = null;
     connectedDeviceName = null;
     deviceConnected = false;
@@ -372,10 +431,33 @@ class AppState extends ChangeNotifier {
   // --------------------
   // Meter state (stubs)
   // --------------------
-  MeterMode meterMode = MeterMode.voltage;
-  bool meterEnabled = false;
-  double? meterReading;
-  DateTime? meterReadingAt;
+MeterMode meterMode = MeterMode.voltage;
+bool meterEnabled = false;
+double? meterReading;      // used generically (volts or other units)
+double? meterCurrentA;     // amps
+DateTime? meterReadingAt;
+
+double? get meterDisplayValue {
+  switch (meterMode) {
+    case MeterMode.voltage:
+      return meterReading;      // volts
+    case MeterMode.current:
+      return meterCurrentA;     // amps
+    case MeterMode.resistance:
+      // You can either compute here or reuse what you're already doing:
+      final v = meterReading;
+      final i = meterCurrentA;
+      if (v == null || i == null) return null;
+      if (i.abs() < 1e-9) return null;
+      return v / i;             // ohms
+    case MeterMode.capacitance:
+      // assume meterReading holds capacitance in farads when in C mode
+      return meterReading;
+    case MeterMode.inductance:
+      // assume meterReading holds inductance in henries when in L mode
+      return meterReading;
+  }
+}
 
   void setMeterMode(MeterMode m) {
     meterMode = m;
@@ -392,8 +474,20 @@ class AppState extends ChangeNotifier {
   void updateMeterReading(double value) {
     meterReading = value;
     meterReadingAt = DateTime.now();
+
+    // capture only voltage samples
+    if (waveformCapturing && meterMode == MeterMode.voltage) {
+      _waveformBuffer.add(value);
+      // optional: cap memory
+      if (_waveformBuffer.length > 2000) {
+        _waveformBuffer.removeAt(0);
+      }
+    }
+
     notifyListeners();
   }
+
+  List<double> get waveformBuffer => List.unmodifiable(_waveformBuffer);
 
   Future<void> sendMeterConfigure(MeterMode m) async {
     meterEnabled = true;
@@ -404,6 +498,51 @@ class AppState extends ChangeNotifier {
     meterEnabled = false;
     meterReading = null;
     notifyListeners();
+  }
+
+  // --------------------
+  // Waveform capture (from meter voltage stream)
+  // --------------------
+  bool waveformCapturing = false;
+  final List<double> _waveformBuffer = [];
+  DateTime? _waveformCaptureStartedAt;
+
+  WaveformData? savedWaveform; // last saved waveform (simple MVP)
+
+  void startWaveformCapture() {
+    _waveformBuffer.clear();
+    waveformCapturing = true;
+    _waveformCaptureStartedAt = DateTime.now();
+    notifyListeners();
+  }
+
+  void stopWaveformCapture() {
+    waveformCapturing = false;
+    notifyListeners();
+  }
+
+  void clearWaveformCapture() {
+    _waveformBuffer.clear();
+    notifyListeners();
+  }
+
+  WaveformData? saveWaveform({String label = 'Captured waveform'}) {
+    final started = _waveformCaptureStartedAt;
+    if (started == null || _waveformBuffer.length < 2) return null;
+
+    // Meter notify period on ESP32 is 200ms => ~5 Hz
+    // (If you change ESP32 period, change this too.)
+    const sampleRateHz = 5.0;
+
+    final w = WaveformData(
+      label: label,
+      samples: List<double>.from(_waveformBuffer),
+      sampleRateHz: sampleRateHz,
+    );
+
+    savedWaveform = w;
+    notifyListeners();
+    return w;
   }
 
   // --------------------
@@ -424,7 +563,22 @@ class AppState extends ChangeNotifier {
   // --------------------
   final List<Lab6Row> lab6Rows = [
     for (final f in [
-      1, 2, 10, 20, 50, 100, 200, 250, 300, 350, 400, 450, 500, 800, 1000, 1200
+      1,
+      2,
+      10,
+      20,
+      50,
+      100,
+      200,
+      250,
+      300,
+      350,
+      400,
+      450,
+      500,
+      800,
+      1000,
+      1200,
     ])
       Lab6Row(fHz: f),
   ];
@@ -437,21 +591,22 @@ class AppState extends ChangeNotifier {
   void updateLab6Row({required int index, double? vin_mV, double? vout_mV}) {
     if (index < 0 || index >= lab6Rows.length) return;
     final row = lab6Rows[index];
-
     if (vin_mV != null) row.vin_mV = vin_mV;
     if (vout_mV != null) row.vout_mV = vout_mV;
-
     if ((row.vin_mV ?? 0) > 0 && row.vout_mV != null) {
       row.ratio = row.vout_mV! / row.vin_mV!;
     }
     notifyListeners();
   }
 
-  void updateLab6Bode({double? fMinus3dBApproxHz, double? R_Ohm, double? C_uF}) {
+  void updateLab6Bode({
+    double? fMinus3dBApproxHz,
+    double? R_Ohm,
+    double? C_uF,
+  }) {
     if (fMinus3dBApproxHz != null) lab6.fMinus3dBApproxHz = fMinus3dBApproxHz;
     if (R_Ohm != null) lab6.R_Ohm = R_Ohm;
     if (C_uF != null) lab6.C_uF = C_uF;
-
     if (lab6.R_Ohm != null &&
         lab6.C_uF != null &&
         lab6.R_Ohm! > 0 &&
@@ -688,16 +843,13 @@ class AppState extends ChangeNotifier {
     if (L3_mH != null) lab4_2.L3_mH = L3_mH;
     if (RL3_Ohm != null) lab4_2.RL3_Ohm = RL3_Ohm;
     if (R_Ohm != null) lab4_2.R_Ohm = R_Ohm;
-
     if (circuitBuilt_42 != null) lab4_2.circuitBuilt_42 = circuitBuilt_42;
     if (vinSaved_42 != null) lab4_2.vinSaved_42 = vinSaved_42;
     if (voutSaved_42 != null) lab4_2.voutSaved_42 = voutSaved_42;
-
     if (tauGraph_ms != null) lab4_2.tauGraph_ms = tauGraph_ms;
     if (tauCalc_ms != null) lab4_2.tauCalc_ms = tauCalc_ms;
     if (tauPrelab_ms != null) lab4_2.tauPrelab_ms = tauPrelab_ms;
     if (notesCompare != null) lab4_2.notesCompare = notesCompare;
-
     notifyListeners();
   }
 
@@ -831,7 +983,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateLab7Square({double? vinAmp_V, double? voutAmp_V, double? phaseDeg}) {
+  void updateLab7Square({
+    double? vinAmp_V,
+    double? voutAmp_V,
+    double? phaseDeg,
+  }) {
     if (vinAmp_V != null) lab7.vinAmpSquare_V = vinAmp_V;
     if (voutAmp_V != null) lab7.voutAmpSquare_V = voutAmp_V;
     if (phaseDeg != null) lab7.phaseDegSquare = phaseDeg;
@@ -889,6 +1045,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+String? lastExportRootPath;
   // --------------------
   // Student email + export
   // --------------------
@@ -907,52 +1064,271 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String> buildExportZip() async {
-    final tmpDir = await getTemporaryDirectory();
-    final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-    final workDir = io.Directory('${tmpDir.path}/labkit_export_$stamp');
-    await workDir.create(recursive: true);
-
-    final summary = {
-      'generated_at': DateTime.now().toIso8601String(),
-      'student_email': studentEmail ?? '',
-      'labs': {
-        'lab1': {
-          'rA1Ohm': lab1.rA1Ohm,
-          'rA2Ohm': lab1.rA2Ohm,
-          'circuitBuilt': lab1.circuitBuilt,
-          'vCVolt': lab1.vCVolt,
-          'vE1VoltCalc': lab1.v1VoltCalc,
-          'vE1VoltMeasure': lab1.v1VoltMeasure,
-          'vE2VoltCalc': lab1.v2VoltCalc,
-          'vE2VoltMeasure': lab1.v2VoltMeasure,
-          'notesD': lab1.notesD,
-          'notesF': lab1.notesF,
-        },
-      },
+Future<String> buildExportZip() async {
+  Map<String, dynamic>? waveformToJson(WaveformData? w) {
+    if (w == null) return null;
+    return {
+      'label': w.label,
+      'sampleRateHz': w.sampleRateHz,
+      'samples': w.samples,
     };
-
-    final prettyJson =
-        const convert.JsonEncoder.withIndent(' ').convert(summary);
-    await _writeTextFile(workDir, 'summary.json', '$prettyJson\n');
-
-    final archive = Archive();
-    for (final entity in workDir.listSync(recursive: false)) {
-      if (entity is io.File) {
-        final bytes = await entity.readAsBytes();
-        final name = p.basename(entity.path);
-        archive.addFile(ArchiveFile(name, bytes.length, bytes));
-      }
-    }
-
-    final zipBytes = ZipEncoder().encode(archive);
-    final zipPath = '${workDir.path}.zip';
-    final zipFile = io.File(zipPath);
-    await zipFile.writeAsBytes(zipBytes, flush: true);
-    return zipPath;
   }
 
-  Future<void> _writeTextFile(io.Directory dir, String name, String content) async {
+  final tmpDir = await getTemporaryDirectory();
+  final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+  final workDir = io.Directory('${tmpDir.path}/labkit_export_$stamp');
+  await workDir.create(recursive: true);
+
+  // Remember this path so WaveformViewer can save PNGs into it
+  lastExportRootPath = workDir.path;
+
+  // Subfolder for waveform JSON files
+  final waveDir = io.Directory('${workDir.path}/waveforms');
+  await waveDir.create(recursive: true);
+
+  final summary = <String, dynamic>{
+    'generated_at': DateTime.now().toIso8601String(),
+    'student_email': studentEmail ?? '',
+    'labs': {
+      'lab1': {
+        'rA1Ohm': lab1.rA1Ohm,
+        'rA2Ohm': lab1.rA2Ohm,
+        'circuitBuilt': lab1.circuitBuilt,
+        'vCVolt': lab1.vCVolt,
+        'v1VoltCalc': lab1.v1VoltCalc,
+        'v1VoltMeasure': lab1.v1VoltMeasure,
+        'v2VoltCalc': lab1.v2VoltCalc,
+        'v2VoltMeasure': lab1.v2VoltMeasure,
+        'notesD': lab1.notesD,
+        'notesF': lab1.notesF,
+      },
+      'lab2': {
+        'r1Ohm': lab2.r1Ohm,
+        'r2Ohm': lab2.r2Ohm,
+        'r3Ohm': lab2.r3Ohm,
+        'r4Ohm': lab2.r4Ohm,
+        'rLOhm': lab2.rLOhm,
+        'circuitBuilt': lab2.circuitBuilt,
+        'iL_mA': lab2.iL_mA,
+        'vxyVolt': lab2.vxyVolt,
+        'vlCalcVolt': lab2.vlCalcVolt,
+        'vocVolt': lab2.vocVolt,
+        'isc_mA': lab2.isc_mA,
+        'ilTh_mA': lab2.ilTh_mA,
+        'ilSim_mA': lab2.ilSim_mA,
+        'pd_meas_th_pct': lab2.pd_meas_th_pct,
+        'pd_meas_sim_pct': lab2.pd_meas_sim_pct,
+        'pd_th_sim_pct': lab2.pd_th_sim_pct,
+      },
+      'lab3': {
+        'r1Ohm': lab3.r1Ohm,
+        'r2Ohm': lab3.r2Ohm,
+        'r3Ohm': lab3.r3Ohm,
+        'circuitBuilt': lab3.circuitBuilt,
+        'vinVoltDC': lab3.vinVoltDC,
+        'voutVoltDC': lab3.voutVoltDC,
+        'notesC': lab3.notesC,
+        'scalingFactorDC': lab3.scalingFactorDC,
+        'notesD': lab3.notesD,
+        'acVinSaved': lab3.acVinSaved,
+        'acVoutSaved': lab3.acVoutSaved,
+        'vinAmp': lab3.vinAmp,
+        'voutAmp': lab3.voutAmp,
+        'scalingFactorAC': lab3.scalingFactorAC,
+        'notesF': lab3.notesF,
+        'timeShiftMs': lab3.timeShiftMs,
+        'phaseShiftDeg': lab3.phaseShiftDeg,
+      },
+      'lab4_1': {
+        'rOhm_A1': lab4_1.rOhm_A1,
+        'c_uF_A1': lab4_1.c_uF_A1,
+        'circuitBuilt_41': lab4_1.circuitBuilt_41,
+        'vinSaved_1uF': lab4_1.vinSaved_1uF,
+        'voutSaved_1uF': lab4_1.voutSaved_1uF,
+        'vinSaved_10uF': lab4_1.vinSaved_10uF,
+        'voutSaved_10uF': lab4_1.voutSaved_10uF,
+        'vinSaved_100uF': lab4_1.vinSaved_100uF,
+        'voutSaved_100uF': lab4_1.voutSaved_100uF,
+        'tauMs': lab4_1.tauMs,
+        'notesCompare': lab4_1.notesCompare,
+      },
+      'lab4_2': {
+        'L1_mH': lab4_2.L1_mH,
+        'RL1_Ohm': lab4_2.RL1_Ohm,
+        'L2_mH': lab4_2.L2_mH,
+        'RL2_Ohm': lab4_2.RL2_Ohm,
+        'L3_mH': lab4_2.L3_mH,
+        'RL3_Ohm': lab4_2.RL3_Ohm,
+        'R_Ohm': lab4_2.R_Ohm,
+        'circuitBuilt_42': lab4_2.circuitBuilt_42,
+        'vinSaved_42': lab4_2.vinSaved_42,
+        'voutSaved_42': lab4_2.voutSaved_42,
+        'tauGraph_ms': lab4_2.tauGraph_ms,
+        'tauCalc_ms': lab4_2.tauCalc_ms,
+        'tauPrelab_ms': lab4_2.tauPrelab_ms,
+        'notesCompare': lab4_2.notesCompare,
+      },
+      'lab5': {
+        'rPotMinOhm': lab5.rPotMinOhm,
+        'rPotMaxOhm': lab5.rPotMaxOhm,
+        'circuitBuilt_5': lab5.circuitBuilt_5,
+        'vinMinSaved': lab5.vinMinSaved,
+        'voutMinSaved': lab5.voutMinSaved,
+        'vinMaxSaved': lab5.vinMaxSaved,
+        'voutMaxSaved': lab5.voutMaxSaved,
+        'notesPhaseShift': lab5.notesPhaseShift,
+        'timeShiftMsMax': lab5.timeShiftMsMax,
+        'phaseShiftDegMax': lab5.phaseShiftDegMax,
+        'vrmsSource': lab5.vrmsSource,
+        'vrmsPot': lab5.vrmsPot,
+        'vrmsCap': lab5.vrmsCap,
+        'kvlApplies': lab5.kvlApplies,
+        'notesKVL': lab5.notesKVL,
+      },
+      'lab6': {
+        'circuitBuilt_6': lab6.circuitBuilt_6,
+        'fMinus3dBApproxHz': lab6.fMinus3dBApproxHz,
+        'f0TheoryHz': lab6.f0TheoryHz,
+        'R_Ohm': lab6.R_Ohm,
+        'C_uF': lab6.C_uF,
+        'isHighPass': lab6.isHighPass,
+        'notesHighLow': lab6.notesHighLow,
+        'rows': [
+          for (final r in lab6Rows)
+            {
+              'fHz': r.fHz,
+              'vin_mV': r.vin_mV,
+              'vout_mV': r.vout_mV,
+              'ratio': r.ratio,
+            }
+        ],
+      },
+      'lab7': {
+        'r1Ohm': lab7.r1Ohm,
+        'r2Ohm': lab7.r2Ohm,
+        'r3Ohm': lab7.r3Ohm,
+        'c_uF': lab7.c_uF,
+        'circuitBuilt_7': lab7.circuitBuilt_7,
+        'vinSineSaved': lab7.vinSineSaved,
+        'voutSineSaved': lab7.voutSineSaved,
+        'vinAmpSine_V': lab7.vinAmpSine_V,
+        'voutAmpSine_V': lab7.voutAmpSine_V,
+        'phaseDegSine': lab7.phaseDegSine,
+        'vinSquareSaved': lab7.vinSquareSaved,
+        'voutSquareSaved': lab7.voutSquareSaved,
+        'vinAmpSquare_V': lab7.vinAmpSquare_V,
+        'voutAmpSquare_V': lab7.voutAmpSquare_V,
+        'phaseDegSquare': lab7.phaseDegSquare,
+        'vinTriSaved': lab7.vinTriSaved,
+        'voutTriSaved': lab7.voutTriSaved,
+        'vinAmpTri_V': lab7.vinAmpTri_V,
+        'voutAmpTri_V': lab7.voutAmpTri_V,
+        'phaseDegTri': lab7.phaseDegTri,
+      },
+      'lab8': {
+        'builtAND': lab8.builtAND,
+        'builtOR': lab8.builtOR,
+        'builtComplex': lab8.builtComplex,
+        'andVout': lab8.andVout,
+        'orVout': lab8.orVout,
+        'complexVout': lab8.complexVout,
+        'notesCompare': lab8.notesCompare,
+      },
+    },
+
+    // Waveforms inlined
+    'waveforms': {
+      'lab3VinWaveform': waveformToJson(lab3VinWaveform),
+      'lab3VoutWaveform': waveformToJson(lab3VoutWaveform),
+
+      'lab4Vin_1uF': waveformToJson(lab4Vin_1uF),
+      'lab4Vout_1uF': waveformToJson(lab4Vout_1uF),
+      'lab4Vin_10uF': waveformToJson(lab4Vin_10uF),
+      'lab4Vout_10uF': waveformToJson(lab4Vout_10uF),
+      'lab4Vin_100uF': waveformToJson(lab4Vin_100uF),
+      'lab4Vout_100uF': waveformToJson(lab4Vout_100uF),
+
+      'lab4_2VinWaveform': waveformToJson(lab4_2VinWaveform),
+      'lab4_2VoutWaveform': waveformToJson(lab4_2VoutWaveform),
+
+      'lab5VinMinWaveform': waveformToJson(lab5VinMinWaveform),
+      'lab5VoutMinWaveform': waveformToJson(lab5VoutMinWaveform),
+      'lab5VinMaxWaveform': waveformToJson(lab5VinMaxWaveform),
+      'lab5VoutMaxWaveform': waveformToJson(lab5VoutMaxWaveform),
+
+      'lab7VinSine': waveformToJson(lab7VinSine),
+      'lab7VoutSine': waveformToJson(lab7VoutSine),
+      'lab7VinSquare': waveformToJson(lab7VinSquare),
+      'lab7VoutSquare': waveformToJson(lab7VoutSquare),
+      'lab7VinTri': waveformToJson(lab7VinTri),
+      'lab7VoutTri': waveformToJson(lab7VoutTri),
+    },
+  };
+
+  // Write summary.json
+  final prettyJson =
+      const convert.JsonEncoder.withIndent('  ').convert(summary);
+  await _writeTextFile(workDir, 'summary.json', '$prettyJson\n');
+
+  // Helper to write individual waveform JSON files
+  Future<void> writeWaveIfPresent(String name, WaveformData? w) async {
+    final j = waveformToJson(w);
+    if (j == null) return;
+    final pretty =
+        const convert.JsonEncoder.withIndent('  ').convert(j);
+    await _writeTextFile(waveDir, '$name.json', '$pretty\n');
+  }
+
+  await writeWaveIfPresent('lab3_vin', lab3VinWaveform);
+  await writeWaveIfPresent('lab3_vout', lab3VoutWaveform);
+
+  await writeWaveIfPresent('lab4_1_vin_1uF', lab4Vin_1uF);
+  await writeWaveIfPresent('lab4_1_vout_1uF', lab4Vout_1uF);
+  await writeWaveIfPresent('lab4_1_vin_10uF', lab4Vin_10uF);
+  await writeWaveIfPresent('lab4_1_vout_10uF', lab4Vout_10uF);
+  await writeWaveIfPresent('lab4_1_vin_100uF', lab4Vin_100uF);
+  await writeWaveIfPresent('lab4_1_vout_100uF', lab4Vout_100uF);
+
+  await writeWaveIfPresent('lab4_2_vin', lab4_2VinWaveform);
+  await writeWaveIfPresent('lab4_2_vout', lab4_2VoutWaveform);
+
+  await writeWaveIfPresent('lab5_vin_min', lab5VinMinWaveform);
+  await writeWaveIfPresent('lab5_vout_min', lab5VoutMinWaveform);
+  await writeWaveIfPresent('lab5_vin_max', lab5VinMaxWaveform);
+  await writeWaveIfPresent('lab5_vout_max', lab5VoutMaxWaveform);
+
+  await writeWaveIfPresent('lab7_vin_sine', lab7VinSine);
+  await writeWaveIfPresent('lab7_vout_sine', lab7VoutSine);
+  await writeWaveIfPresent('lab7_vin_square', lab7VinSquare);
+  await writeWaveIfPresent('lab7_vout_square', lab7VoutSquare);
+  await writeWaveIfPresent('lab7_vin_tri', lab7VinTri);
+  await writeWaveIfPresent('lab7_vout_tri', lab7VoutTri);
+
+  // Any PNGs you saved into workDir (e.g. workDir/waveforms_png/*.png)
+  // will be picked up automatically below.
+
+  // Zip everything under workDir (including subfolders and PNGs)
+  final archive = Archive();
+  for (final entity in workDir.listSync(recursive: true)) {
+    if (entity is io.File) {
+      final bytes = await entity.readAsBytes();
+      final relPath = p.relative(entity.path, from: workDir.path);
+      archive.addFile(ArchiveFile(relPath, bytes.length, bytes));
+    }
+  }
+
+  final zipBytes = ZipEncoder().encode(archive);
+  final zipPath = '${workDir.path}.zip';
+  final zipFile = io.File(zipPath);
+  await zipFile.writeAsBytes(zipBytes, flush: true);
+  return zipPath;
+}
+
+  Future<void> _writeTextFile(
+    io.Directory dir,
+    String name,
+    String content,
+  ) async {
     final file = io.File('${dir.path}/$name');
     await file.writeAsString(content);
   }
@@ -1004,7 +1380,10 @@ class AppState extends ChangeNotifier {
             borderRadius: BorderRadius.circular(12),
             clipBehavior: Clip.antiAlias,
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: 320, maxHeight: boundedMaxH),
+              constraints: BoxConstraints(
+                maxWidth: 320,
+                maxHeight: boundedMaxH,
+              ),
               child: const MeterOverlayCard(),
             ),
           ),
@@ -1023,7 +1402,7 @@ class AppState extends ChangeNotifier {
   }
 
   void insertCurrentReadingIntoActiveTarget() {
-    final v = meterReading;
+    final v = meterDisplayValue; // instead of meterReading
     final target = activeInsertTarget;
     if (v != null && target != null) target(v);
   }

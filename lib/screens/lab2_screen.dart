@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../state/app_state.dart';
 import '../../widgets/connection_warning.dart';
 
 class Lab2Screen extends StatefulWidget {
   const Lab2Screen({super.key});
+
   @override
   State<Lab2Screen> createState() => _Lab2ScreenState();
 }
 
 class _Lab2ScreenState extends State<Lab2Screen> {
-  // Controllers for A.1 and A.3 inputs
+  // Controllers for A.1 and A.3 inputs and rest of lab
   final _r1Ctrl = TextEditingController();
   final _r2Ctrl = TextEditingController();
   final _r3Ctrl = TextEditingController();
@@ -29,6 +31,7 @@ class _Lab2ScreenState extends State<Lab2Screen> {
       TextEditingController(); // Part F: % diff Measured vs Simulation
   final _pdThSimCtrl =
       TextEditingController(); // Part F: % diff Thevenin vs Simulation
+
   @override
   void initState() {
     super.initState();
@@ -78,25 +81,84 @@ class _Lab2ScreenState extends State<Lab2Screen> {
 
   void _save() {
     context.read<AppState>().updateLab2(
-      r1Ohm: _parseDouble(_r1Ctrl.text),
-      r2Ohm: _parseDouble(_r2Ctrl.text),
-      r3Ohm: _parseDouble(_r3Ctrl.text),
-      r4Ohm: _parseDouble(_r4Ctrl.text),
-      rLOhm: _parseDouble(_rLCtrl.text),
-      iL_mA: _parseDouble(_iLCtrl.text),
-      vxyVolt: _parseDouble(_vxyCtrl.text),
-      vlCalcVolt: _parseDouble(_vlCalcCtrl.text),
-      vocVolt: _parseDouble(_vocCtrl.text),
-      isc_mA: _parseDouble(_iscCtrl.text),
-      ilTh_mA: _parseDouble(_ilThCtrl.text),
-      ilSim_mA: _parseDouble(_ilSimCtrl.text),
-      pd_meas_th_pct: _parseDouble(_pdMeasThCtrl.text),
-      pd_meas_sim_pct: _parseDouble(_pdMeasSimCtrl.text),
-      pd_th_sim_pct: _parseDouble(_pdThSimCtrl.text),
+          r1Ohm: _parseDouble(_r1Ctrl.text),
+          r2Ohm: _parseDouble(_r2Ctrl.text),
+          r3Ohm: _parseDouble(_r3Ctrl.text),
+          r4Ohm: _parseDouble(_r4Ctrl.text),
+          rLOhm: _parseDouble(_rLCtrl.text),
+          iL_mA: _parseDouble(_iLCtrl.text),
+          vxyVolt: _parseDouble(_vxyCtrl.text),
+          vlCalcVolt: _parseDouble(_vlCalcCtrl.text),
+          vocVolt: _parseDouble(_vocCtrl.text),
+          isc_mA: _parseDouble(_iscCtrl.text),
+          ilTh_mA: _parseDouble(_ilThCtrl.text),
+          ilSim_mA: _parseDouble(_ilSimCtrl.text),
+          pd_meas_th_pct: _parseDouble(_pdMeasThCtrl.text),
+          pd_meas_sim_pct: _parseDouble(_pdMeasSimCtrl.text),
+          pd_th_sim_pct: _parseDouble(_pdThSimCtrl.text),
+        );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Lab 2 progress saved')));
+  }
+
+  /// Attach meter insert behavior to a specific field.
+  void _attachMeterInsert({
+    required bool connected,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+    int decimals = 3,
+  }) {
+    FocusScope.of(context).unfocus();
+    final app = context.read<AppState>();
+
+    if (!connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect to use the meter.')),
+      );
+      return;
+    }
+
+    app.setActiveInsertTarget((double value) {
+      controller.text = value.toStringAsFixed(decimals);
+      applyToState(value);
+    });
+
+    app.showMeterOverlay(context);
+  }
+
+  Widget _meterableField({
+    required bool connected,
+    required String label,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+    int decimals = 3,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: label),
+            onChanged: (text) {
+              final v = _parseDouble(text);
+              if (v != null) applyToState(v);
+            },
+          ),
+        ),
+        IconButton(
+          tooltip: 'Use meter reading',
+          icon: const Icon(Icons.download),
+          onPressed: () => _attachMeterInsert(
+            connected: connected,
+            controller: controller,
+            applyToState: applyToState,
+            decimals: decimals,
+          ),
+        ),
+      ],
     );
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Lab 2 progress saved')));
   }
 
   @override
@@ -130,8 +192,8 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Locate all required resistors and measure their resistances using the LabKit.'
-                    '\n R1=47 Ω, R2=47 Ω, R3=100 Ω, R4=220 Ω, RL=100 Ω (or closest available).',
+                    'Locate all required resistors and measure their resistances using the LabKit.\n'
+                    'R1=47 Ω, R2=47 Ω, R3=100 Ω, R4=220 Ω, RL=100 Ω (or closest available).',
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -148,72 +210,59 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                               : 'Connect device to use multimeter',
                         ),
                       ),
-                      ElevatedButton(
-                        onPressed: () {
-                          FocusScope.of(
-                            context,
-                          ).unfocus(); // hide keyboard immediately
-                          final app = context.read<AppState>();
-                          if (!app.deviceConnected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          app.showMeterOverlay(context);
-                        },
-                        child: const Text('Open Meter'),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'R1 (Ω)',
                     controller: _r1Ctrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'R1 (Ω)'),
+                    decimals: 2,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab2(r1Ohm: v),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'R2 (Ω)',
                     controller: _r2Ctrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'R2 (Ω)'),
+                    decimals: 2,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab2(r2Ohm: v),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'R3 (Ω)',
                     controller: _r3Ctrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'R3 (Ω)'),
+                    decimals: 2,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab2(r3Ohm: v),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'R4 (Ω)',
                     controller: _r4Ctrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'R4 (Ω)'),
+                    decimals: 2,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab2(r4Ohm: v),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'RL (Ω)',
                     controller: _rLCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'RL (Ω)'),
+                    decimals: 2,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab2(rLOhm: v),
                   ),
                 ],
               ),
             ),
           ),
 
-          // A.2 — Build per diagram and power to +5 V
+          // A.2 — Build circuit and apply +5 V
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -227,11 +276,9 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                   const SizedBox(height: 8),
                   const Text(
                     'Build the circuit based on the provided diagram. '
-                    'After verifying connections, enable a positve 5V signal to Vs.',
+                    'After verifying connections, enable a positive 5V signal to Vs.',
                   ),
                   const SizedBox(height: 12),
-                  // Replace with your real asset when ready:
-                  // InteractiveViewer(child: Image.asset('assets/images/labs/lab2_circuit.png', fit: BoxFit.contain)),
                   InteractiveViewer(
                     minScale: 0.5,
                     maxScale: 5.0,
@@ -245,15 +292,14 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                     children: [
                       Checkbox(
                         value: app.lab2.circuitBuilt,
-                        onChanged: (v) => context.read<AppState>().updateLab2(
-                          circuitBuilt: v ?? false,
-                        ),
+                        onChanged: (v) => context
+                            .read<AppState>()
+                            .updateLab2(circuitBuilt: v ?? false),
                       ),
                       const Text('I have built the circuit as shown'),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Stacked power controls (full-width)
                   Row(
                     children: [
                       Icon(
@@ -271,36 +317,31 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                        final connected = context
-                            .read<AppState>()
-                            .deviceConnected;
+                        final connected =
+                            context.read<AppState>().deviceConnected;
                         if (!connected) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                'Connect to the device to change outputs.',
-                              ),
+                                  'Connect to the device to change outputs.'),
                             ),
                           );
                           return;
                         }
-
-                        final built = context
-                            .read<AppState>()
-                            .lab2
-                            .circuitBuilt; // latest value
+                        final built =
+                            context.read<AppState>().lab2.circuitBuilt;
                         if (!built) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                'Check the box after building first.',
-                              ),
+                                  'Check the box after building first.'),
                             ),
                           );
                           return;
                         }
-
-                        context.read<AppState>().sendSetPositiveSupply5V();
+                        context
+                            .read<AppState>()
+                            .sendSetPositiveSupply5V();
                       },
                       child: const Text('Enable +5 V'),
                     ),
@@ -314,8 +355,7 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text(
-                                'Connect to the device to change outputs.',
-                              ),
+                                  'Connect to the device to change outputs.'),
                             ),
                           );
                           return;
@@ -343,8 +383,7 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Measure the load current IL as shown on the diagram. '
-                    'Record your measurement in milliamps (mA).',
+                    'Measure the load current IL as shown on the diagram. Record your measurement in milliamps (mA).',
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -361,48 +400,23 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                               : 'Connect device to use multimeter',
                         ),
                       ),
-                      ElevatedButton(
-                        onPressed: () {
-                          FocusScope.of(
-                            context,
-                          ).unfocus(); // hide keyboard immediately
-                          final app = context.read<AppState>();
-                          if (!app.deviceConnected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          app.showMeterOverlay(context);
-                        },
-                        child: const Text('Open Meter'),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'Measured IL (mA)',
                     controller: _iLCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Measured IL (mA)',
-                    ),
-                    onChanged: (_) {
-                      final val = _parseDouble(_iLCtrl.text);
-                      if (val != null) {
-                        context.read<AppState>().updateLab2(iL_mA: val);
-                      }
-                    },
+                    decimals: 3,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab2(iL_mA: v),
                   ),
                 ],
               ),
             ),
           ),
 
-          // B — Measure VL and compare to calculated value
+          // B — Measure VL (Vxy) and calculated VL
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -420,89 +434,54 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                     '3) Enter both values below and compare.',
                   ),
                   const SizedBox(height: 12),
-                  // Multimeter action row
                   Row(
                     children: [
                       Icon(
                         Icons.speed,
-                        color: context.watch<AppState>().deviceConnected
-                            ? Colors.blue
-                            : Colors.grey,
+                        color: connected ? Colors.blue : Colors.grey,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          context.watch<AppState>().deviceConnected
+                          connected
                               ? 'Multimeter available'
                               : 'Connect device to use multimeter',
                         ),
                       ),
-                      ElevatedButton(
-                        onPressed: () {
-                          FocusScope.of(
-                            context,
-                          ).unfocus(); // hide keyboard immediately
-                          final app = context.read<AppState>();
-                          if (!app.deviceConnected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          app.showMeterOverlay(context);
-                        },
-                        child: const Text('Open Meter'),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  // Measured Vxy input
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'Measured Vxy (V)',
                     controller: _vxyCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Measured Vxy (V)',
-                    ),
-                    onChanged: (text) {
-                      final v = _parseDouble(text);
-                      if (v != null) {
-                        context.read<AppState>().updateLab2(vxyVolt: v);
-                      }
-                      setState(() {}); // refresh comparison line below
-                    },
+                    decimals: 3,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab2(vxyVolt: v),
                   ),
                   const SizedBox(height: 12),
-
-                  // NEW: Manually calculated VL input
                   TextField(
                     controller: _vlCalcCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'Calculated VL (V)',
                     ),
                     onChanged: (text) {
                       final v = _parseDouble(text);
                       if (v != null) {
-                        context.read<AppState>().updateLab2(vlCalcVolt: v);
+                        context
+                            .read<AppState>()
+                            .updateLab2(vlCalcVolt: v);
                       }
-                      setState(() {}); // refresh comparison line below
                     },
                   ),
-
-                  // OPTIONAL: Show difference if both values are present
                 ],
               ),
             ),
           ),
 
-          // C — Find Thevenin equivalent (VOC and ISC)
+          // C — VOC and ISC
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -516,88 +495,51 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                   const SizedBox(height: 8),
                   const Text(
                     'Remove the load resistor RL from the circuit.\n'
-                    '1) Measure the open-circuit voltage VOC at the load terminals. (\n'
+                    '1) Measure the open-circuit voltage VOC at the load terminals.\n'
                     '2) Measure the short-circuit current ISC at the load terminals.\n'
                     'Record both values using the multimeter.',
                   ),
                   const SizedBox(height: 12),
-                  // Multimeter action row
                   Row(
                     children: [
                       Icon(
                         Icons.speed,
-                        color: context.watch<AppState>().deviceConnected
-                            ? Colors.blue
-                            : Colors.grey,
+                        color: connected ? Colors.blue : Colors.grey,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          context.watch<AppState>().deviceConnected
+                          connected
                               ? 'Multimeter available'
                               : 'Connect device to use multimeter',
                         ),
                       ),
-                      ElevatedButton(
-                        onPressed: () {
-                          FocusScope.of(
-                            context,
-                          ).unfocus(); // hide keyboard immediately
-                          final app = context.read<AppState>();
-                          if (!app.deviceConnected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Connect to use the meter.'),
-                              ),
-                            );
-                            return;
-                          }
-                          app.showMeterOverlay(context);
-                        },
-                        child: const Text('Open Meter'),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // VOC input
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'Measured VOC (V)',
                     controller: _vocCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Measured VOC (V)',
-                    ),
-                    onChanged: (text) {
-                      final v = _parseDouble(text);
-                      if (v != null) {
-                        context.read<AppState>().updateLab2(vocVolt: v);
-                      }
-                    },
+                    decimals: 3,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab2(vocVolt: v),
                   ),
                   const SizedBox(height: 8),
-                  // ISC input
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'Measured ISC (mA)',
                     controller: _iscCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Measured ISC (mA)',
-                    ),
-                    onChanged: (text) {
-                      final v = _parseDouble(text);
-                      if (v != null) {
-                        context.read<AppState>().updateLab2(isc_mA: v);
-                      }
-                    },
+                    decimals: 3,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab2(isc_mA: v),
                   ),
                 ],
               ),
             ),
           ),
 
-          // D — Thevenin equivalent and calculate IL_Thevenin
+          // D — Thevenin equivalent IL
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -616,9 +558,8 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _ilThCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'IL (mA) — from Thevenin calculation',
                     ),
@@ -634,7 +575,7 @@ class _Lab2ScreenState extends State<Lab2Screen> {
             ),
           ),
 
-          // E — Simulate Thevenin circuit and measure IL_Simulation
+          // E — Simulation IL
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -652,9 +593,8 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _ilSimCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'IL (mA) — from simulation',
                     ),
@@ -670,6 +610,7 @@ class _Lab2ScreenState extends State<Lab2Screen> {
             ),
           ),
 
+          // F — Percent differences
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -686,58 +627,56 @@ class _Lab2ScreenState extends State<Lab2Screen> {
                     '• Measured (Part A.3)\n'
                     '• Thevenin calculation (Part D)\n'
                     '• Simulation (Part E)\n\n'
-                    'Compute the percent differences manually (e.g., |A − B| / average × 100%) and record them below.',
+                    'Compute the percent differences manually and record them below.',
                   ),
                   const SizedBox(height: 12),
-
-                  const SizedBox(height: 12),
-
                   TextField(
                     controller: _pdMeasThCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'Percent diff — Measured vs Thevenin (%)',
                     ),
                     onChanged: (text) {
                       final v = _parseDouble(text);
                       if (v != null) {
-                        context.read<AppState>().updateLab2(pd_meas_th_pct: v);
+                        context
+                            .read<AppState>()
+                            .updateLab2(pd_meas_th_pct: v);
                       }
                     },
                   ),
                   const SizedBox(height: 8),
-
                   TextField(
                     controller: _pdMeasSimCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'Percent diff — Measured vs Simulation (%)',
                     ),
                     onChanged: (text) {
                       final v = _parseDouble(text);
                       if (v != null) {
-                        context.read<AppState>().updateLab2(pd_meas_sim_pct: v);
+                        context
+                            .read<AppState>()
+                            .updateLab2(pd_meas_sim_pct: v);
                       }
                     },
                   ),
                   const SizedBox(height: 8),
-
                   TextField(
                     controller: _pdThSimCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'Percent diff — Thevenin vs Simulation (%)',
                     ),
                     onChanged: (text) {
                       final v = _parseDouble(text);
                       if (v != null) {
-                        context.read<AppState>().updateLab2(pd_th_sim_pct: v);
+                        context
+                            .read<AppState>()
+                            .updateLab2(pd_th_sim_pct: v);
                       }
                     },
                   ),
@@ -746,7 +685,6 @@ class _Lab2ScreenState extends State<Lab2Screen> {
             ),
           ),
 
-          // Saving at the bottom
           const SizedBox(height: 12),
           Row(
             children: [

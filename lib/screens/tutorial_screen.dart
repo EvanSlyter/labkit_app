@@ -1,15 +1,40 @@
 import 'dart:math' as math;
-import 'package:fl_chart/fl_chart.dart';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../state/app_state.dart'; // adjust path if your file is elsewhere
+
+import '../state/app_state.dart';
+import '../widgets/waveform_viewer.dart';
 
 class TutorialScreen extends StatelessWidget {
   const TutorialScreen({super.key});
 
+  WaveformData _demoSineWave() {
+    const int sampleCount = 512;
+    const double sampleRateHz = 2000.0;
+    const double freqHz = 10.0;
+    const double amplitude = 1.0;
+    const double phase = 0.0;
+
+    final twoPi = 2 * math.pi;
+    final dt = 1.0 / sampleRateHz;
+
+    final samples = List<double>.generate(
+      sampleCount,
+      (i) => amplitude * math.sin(twoPi * freqHz * (i * dt) + phase),
+    );
+
+    return WaveformData(
+      label: 'Tutorial demo sine',
+      samples: samples,
+      sampleRateHz: sampleRateHz,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final connected = context.watch<AppState>().deviceConnected;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Tutorial')),
@@ -35,10 +60,9 @@ class TutorialScreen extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(height: 12),
 
-          // NEW SECTION: Op-amp power always active warning
+          // Op-amp power warning
           SectionCard(
             title: 'Important: Op-amp power rails are always active',
             child: Column(
@@ -54,9 +78,11 @@ class TutorialScreen extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 6),
-                const Text('• Only ever use the op amp cables (clearly marked on the box) for powering op amps. Never use them to power your circuit.'),
+                const Text(
+                    '• Only ever use the op amp cables (clearly marked on the box) for powering op amps. Never use them to power your circuit.'),
                 const Text('• Double-check polarity/orientation before applying input signals.'),
-                const Text('• Ensure the circuit is not powered when connecting or disconnecting probes from the op amp.'),
+                const Text(
+                    '• Ensure the circuit is not powered when connecting or disconnecting probes from the op amp.'),
                 const SizedBox(height: 8),
                 Text(
                   'Feel free to measure the op amp cables with the multimeter to confirm voltages.',
@@ -65,7 +91,6 @@ class TutorialScreen extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(height: 12),
 
           // Section 2: Using the Meter
@@ -79,47 +104,70 @@ class TutorialScreen extends StatelessWidget {
                   'then insert the reading directly into a text field.',
                 ),
                 const SizedBox(height: 8),
-                const Text('1) Tap the text box where you want the value.'),
-                const Text('2) Tap “Open Meter” (or the meter icon) to show the overlay.'),
-                const Text('3) Choose the mode (Voltage, Resistance, Capacitance, Inductance).'),
+                const Text('1) Tap the download icon next to the text field you want to fill.'),
+                const Text('2) The app opens the meter overlay and targets that field.'),
                 const Text(
-                    '4) When a stable value appears, tap “Insert into field” (You may need to scroll down).'),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.speed),
-                    label: const Text('Open Meter overlay'),
-                    onPressed: () {
-                      // Allow opening even if disconnected so users can see the overlay UI.
-                      context.read<AppState>().showMeterOverlay(context);
-                    },
-                  ),
+                    '3) Choose the mode (Voltage, Current, Resistance, Capacitance, Inductance).'),
+                const Text(
+                    '4) When a stable value appears, tap “Insert into field” in the meter overlay.'),
+                const SizedBox(height: 8),
+                Text(
+                  'Tip: You can keep the meter overlay open while you move between lab fields. The download icon tells the meter which field to fill.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Tip: The overlay floats above your current screen so you don’t have to navigate away.',
+                  'Note: In some labs you may see a meter icon next to multiple fields (e.g., resistor or RMS measurements). Each icon sets a different target for insertion.',
                   style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                 ),
               ],
             ),
           ),
-
           const SizedBox(height: 12),
 
-          // Section 3: Static oscilloscope demo (not live)
+          // Section 3: Oscilloscope demo using WaveformViewer
           SectionCard(
-            title: 'Oscilloscope Demo (static sample)',
+            title: 'Oscilloscope Demo',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Below is a static (not live) example of a sine waveform. '
-                  'In the labs the waveform will be collected mostly automatically. '
-                  'You will need to connect the probes to the correct positions and press the save waveform button. ',
+              children: [
+                const Text(
+                  'This demo shows a static, fake sine waveform using the same viewer you will use in the labs.',
                 ),
-                SizedBox(height: 12),
-                OscilloscopeDemo(),
+                const SizedBox(height: 8),
+                const Text(
+                  'In the labs, the waveform will be captured automatically when you press a "Save waveform" button. '
+                  'Here you can practice zooming, panning, and reading values from the viewer.',
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.show_chart),
+                    label: const Text('Open oscilloscope demo'),
+                    onPressed: () {
+                      final demo = _demoSineWave();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => WaveformViewer(
+                            data: demo,
+                            title: 'Oscilloscope Demo',
+                            onSaved: null, // view-only demo
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Try:\n'
+                  '• Adjusting the Window slider to change how many seconds are visible.\n'
+                  '• Using the Position slider to pan left/right.\n'
+                  '• Using "Save PNG" if available, to capture an image of the waveform.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
+                ),
               ],
             ),
           ),
@@ -149,87 +197,14 @@ class SectionCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              style:
+                  theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
             child,
           ],
         ),
       ),
-    );
-  }
-}
-
-// Static oscilloscope example (no animation, not live)
-class OscilloscopeDemo extends StatelessWidget {
-  const OscilloscopeDemo({super.key});
-
-  // Fake static sine parameters
-  static const int sampleCount = 256;
-  static const double sampleRateHz = 2000; // x-axis in seconds
-  static const double freqHz = 10;
-  static const double amplitude = 1.0;
-  static const double phase = 0.0;
-
-  List<double> _generateSine() {
-    final twoPi = 2 * math.pi;
-    final dt = 1.0 / sampleRateHz;
-    return List<double>.generate(
-      sampleCount,
-      (i) => amplitude * math.sin(twoPi * freqHz * (i * dt) + phase),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final samples = _generateSine();
-    final spots = List<FlSpot>.generate(
-      samples.length,
-      (i) => FlSpot(i / sampleRateHz, samples[i]),
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          height: 180,
-          child: LineChart(
-            LineChartData(
-              minX: 0,
-              maxX: sampleCount / sampleRateHz,
-              minY: -1.2,
-              maxY: 1.2,
-              clipData: const FlClipData.all(),
-              gridData: FlGridData(show: true),
-              titlesData: FlTitlesData(
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(showTitles: true, reservedSize: 36),
-                ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(showTitles: true),
-                ),
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              ),
-              lineBarsData: [
-                LineChartBarData(
-                  spots: spots,
-                  isCurved: false,
-                  color: Colors.blue,
-                  barWidth: 2,
-                  dotData: FlDotData(show: false),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Static sine: f = ${freqHz.toStringAsFixed(0)} Hz, A = ${amplitude.toStringAsFixed(1)} V '
-          '(demo only, not a live feed)',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
-        ),
-      ],
     );
   }
 }

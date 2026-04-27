@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../state/app_state.dart';
 import '../../widgets/connection_warning.dart';
 import '../widgets/waveform_viewer.dart';
 
 class Lab3Screen extends StatefulWidget {
   const Lab3Screen({super.key});
+
   @override
   State<Lab3Screen> createState() => _Lab3ScreenState();
 }
@@ -25,8 +27,6 @@ class _Lab3ScreenState extends State<Lab3Screen> {
   final _sfACCtrl = TextEditingController();
   final _notesFCtrl = TextEditingController();
   final _timeShiftCtrl = TextEditingController();
-
-  // NEW: phase shift controller (degrees)
   final _phaseShiftCtrl = TextEditingController();
 
   @override
@@ -46,8 +46,6 @@ class _Lab3ScreenState extends State<Lab3Screen> {
     _sfACCtrl.text = s.scalingFactorAC?.toString() ?? '';
     _notesFCtrl.text = s.notesF ?? '';
     _timeShiftCtrl.text = s.timeShiftMs?.toString() ?? '';
-
-    // NEW
     _phaseShiftCtrl.text = s.phaseShiftDeg?.toString() ?? '';
   }
 
@@ -66,10 +64,7 @@ class _Lab3ScreenState extends State<Lab3Screen> {
     _sfACCtrl.dispose();
     _notesFCtrl.dispose();
     _timeShiftCtrl.dispose();
-
-    // NEW
     _phaseShiftCtrl.dispose();
-
     super.dispose();
   }
 
@@ -94,13 +89,110 @@ class _Lab3ScreenState extends State<Lab3Screen> {
           scalingFactorAC: _parseDouble(_sfACCtrl.text),
           notesF: _notesFCtrl.text.trim().isEmpty ? null : _notesFCtrl.text.trim(),
           timeShiftMs: _parseDouble(_timeShiftCtrl.text),
-
-          // NEW
           phaseShiftDeg: _parseDouble(_phaseShiftCtrl.text),
         );
 
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('Lab 3 progress saved')));
+  }
+
+  void _openSavedWaveform({
+    required WaveformData? w,
+    required String missingMsg,
+    required String title,
+  }) {
+    if (w == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(missingMsg)));
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => WaveformViewer(data: w, title: title)),
+    );
+  }
+
+  void _captureAndSaveInto({
+    required bool connected,
+    required String title,
+    required void Function(WaveformData w) onSaved,
+  }) {
+    if (!connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect to capture waveforms.')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WaveformViewer(
+          data: null, // capture mode
+          title: title,
+          onSaved: onSaved,
+        ),
+      ),
+    );
+  }
+
+  // Meter insert helper (Lab 3 Part A/C/E)
+  void _attachMeterInsert({
+    required bool connected,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+    int decimals = 3,
+  }) {
+    FocusScope.of(context).unfocus();
+    final app = context.read<AppState>();
+
+    if (!connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect to use the meter.')),
+      );
+      return;
+    }
+
+    app.setActiveInsertTarget((double value) {
+      controller.text = value.toStringAsFixed(decimals);
+      applyToState(value);
+    });
+
+    app.showMeterOverlay(context);
+  }
+
+  Widget _meterableField({
+    required bool connected,
+    required String label,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+    int decimals = 3,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: label),
+            onChanged: (text) {
+              final v = _parseDouble(text);
+              if (v != null) applyToState(v);
+            },
+          ),
+        ),
+        IconButton(
+          tooltip: 'Use meter reading',
+          icon: const Icon(Icons.download),
+          onPressed: () => _attachMeterInsert(
+            connected: connected,
+            controller: controller,
+            applyToState: applyToState,
+            decimals: decimals,
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -145,49 +237,46 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          connected ? 'Multimeter available' : 'Connect device to use multimeter',
+                          connected
+                              ? 'Multimeter available'
+                              : 'Connect device to use multimeter',
                         ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          FocusScope.of(context).unfocus();
-                          final app = context.read<AppState>();
-                          if (!app.deviceConnected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Connect to use the meter.')),
-                            );
-                            return;
-                          }
-                          app.showMeterOverlay(context);
-                        },
-                        child: const Text('Open Meter'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'R1 (Ω)',
                     controller: _r1Ctrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'R1 (Ω)'),
+                    decimals: 2,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab3(r1Ohm: v),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'R2.1 (Ω)',
                     controller: _r2Ctrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'R2.1 (Ω)'),
+                    decimals: 2,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab3(r2Ohm: v),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'R2.2 (Ω)',
                     controller: _r3Ctrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'R2.2 (Ω)'),
+                    decimals: 2,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab3(r3Ohm: v),
                   ),
                 ],
               ),
             ),
           ),
 
-          // Part B — Build first circuit and power it
+          // Part B — Build circuit, power rails, set input
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -233,11 +322,13 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                             : Colors.grey,
                       ),
                       const SizedBox(width: 8),
-                      const Expanded(child: Text('Op-amp rails (+5 / −5) and DC input')),
+                      const Expanded(
+                        child: Text('Op-amp rails (+5 / −5) and DC input'),
+                      ),
                     ],
                   ),
+                  
                   const SizedBox(height: 8),
-
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -245,37 +336,17 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                         final connected = context.read<AppState>().deviceConnected;
                         if (!connected) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Connect to the device to change outputs.')),
+                            const SnackBar(
+                              content: Text('Connect to the device to change outputs.'),
+                            ),
                           );
                           return;
                         }
                         if (!context.read<AppState>().lab3.circuitBuilt) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Check the box after building first.')),
-                          );
-                          return;
-                        }
-                        context.read<AppState>().sendEnableOpAmpRailsPlusMinus5();
-                      },
-                      child: const Text('Enable op-amp rails (+5 / −5)'),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final connected = context.read<AppState>().deviceConnected;
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Connect to the device to change outputs.')),
-                          );
-                          return;
-                        }
-                        if (!context.read<AppState>().lab3.circuitBuilt) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Check the box after building first.')),
+                            const SnackBar(
+                              content: Text('Check the box after building first.'),
+                            ),
                           );
                           return;
                         }
@@ -285,7 +356,6 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
@@ -293,7 +363,9 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                         final connected = context.read<AppState>().deviceConnected;
                         if (!connected) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Connect to the device to change outputs.')),
+                            const SnackBar(
+                              content: Text('Connect to the device to change outputs.'),
+                            ),
                           );
                           return;
                         }
@@ -307,7 +379,7 @@ class _Lab3ScreenState extends State<Lab3Screen> {
             ),
           ),
 
-          // Part C — Measure Vin and Vout and compare with simulation
+          // Part C — Measure Vin and Vout (DC)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -323,50 +395,22 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                     'Measure Vin and Vout in the DC circuit and write a note comparing with your prior simulation.',
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(Icons.speed, color: connected ? Colors.blue : Colors.grey),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          connected ? 'Multimeter available' : 'Connect device to use multimeter',
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {
-                          FocusScope.of(context).unfocus();
-                          final app = context.read<AppState>();
-                          if (!app.deviceConnected) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Connect to use the meter.')),
-                            );
-                            return;
-                          }
-                          app.showMeterOverlay(context);
-                        },
-                        child: const Text('Open Meter'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'Measured Vin (V)',
                     controller: _vinDCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Measured Vin (V)'),
-                    onChanged: (text) {
-                      final v = _parseDouble(text);
-                      if (v != null) context.read<AppState>().updateLab3(vinVoltDC: v);
-                    },
+                    decimals: 3,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab3(vinVoltDC: v),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  _meterableField(
+                    connected: connected,
+                    label: 'Measured Vout (V)',
                     controller: _voutDCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Measured Vout (V)'),
-                    onChanged: (text) {
-                      final v = _parseDouble(text);
-                      if (v != null) context.read<AppState>().updateLab3(voutVoltDC: v);
-                    },
+                    decimals: 3,
+                    applyToState: (v) =>
+                        context.read<AppState>().updateLab3(voutVoltDC: v),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -386,7 +430,7 @@ class _Lab3ScreenState extends State<Lab3Screen> {
             ),
           ),
 
-          // Part D — Save scaling factor and write expectation
+          // Part D — DC scaling factor and expectation
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -404,18 +448,24 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _sfDCCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Scaling factor (DC)'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration:
+                        const InputDecoration(labelText: 'Scaling factor (DC)'),
                     onChanged: (text) {
                       final v = _parseDouble(text);
-                      if (v != null) context.read<AppState>().updateLab3(scalingFactorDC: v);
+                      if (v != null) {
+                        context.read<AppState>().updateLab3(scalingFactorDC: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _notesDCtrl,
                     maxLines: 3,
-                    decoration: const InputDecoration(labelText: 'Notes: is it as expected?'),
+                    decoration: const InputDecoration(
+                      labelText: 'Notes: is it as expected?',
+                    ),
                     onChanged: (text) {
                       context.read<AppState>().updateLab3(
                             notesD: text.trim().isEmpty ? null : text.trim(),
@@ -427,7 +477,7 @@ class _Lab3ScreenState extends State<Lab3Screen> {
             ),
           ),
 
-          // Part E — AC Input (unchanged from your current version)
+          // Part E — AC input, save waveforms
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -469,7 +519,8 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                              content: Text('AC signal generator enabled (placeholder)')),
+                              content:
+                                  Text('AC signal generator enabled (placeholder)')),
                         );
                       },
                       child: const Text('Enable AC input (signal generator)'),
@@ -505,12 +556,13 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Icon(Icons.show_chart, color: connected ? Colors.blue : Colors.grey),
+                      Icon(Icons.show_chart,
+                          color: connected ? Colors.blue : Colors.grey),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           connected
-                              ? 'Oscilloscope snapshot available'
+                              ? 'Waveform capture available'
                               : 'Connect device to capture waveforms',
                         ),
                       ),
@@ -520,18 +572,15 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Connect to capture waveforms.')),
-                          );
-                          return;
-                        }
-                        context.read<AppState>().updateLab3(acVinSaved: true);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vin waveform saved (placeholder)')),
-                        );
-                      },
+                      onPressed: () => _captureAndSaveInto(
+                        connected: connected,
+                        title: 'Lab 3 — Vin (AC)',
+                        onSaved: (w) {
+                          final app = context.read<AppState>();
+                          app.setLab3VinWaveform(w);
+                          app.updateLab3(acVinSaved: true);
+                        },
+                      ),
                       child: const Text('Save Vin waveform'),
                     ),
                   ),
@@ -539,18 +588,15 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (!connected) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Connect to capture waveforms.')),
-                          );
-                          return;
-                        }
-                        context.read<AppState>().updateLab3(acVoutSaved: true);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Vout waveform saved (placeholder)')),
-                        );
-                      },
+                      onPressed: () => _captureAndSaveInto(
+                        connected: connected,
+                        title: 'Lab 3 — Vout (AC)',
+                        onSaved: (w) {
+                          final app = context.read<AppState>();
+                          app.setLab3VoutWaveform(w);
+                          app.updateLab3(acVoutSaved: true);
+                        },
+                      ),
                       child: const Text('Save Vout waveform'),
                     ),
                   ),
@@ -588,26 +634,22 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context.read<AppState>().lab3VinWaveform;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => WaveformViewer(data: w)),
-                            );
-                          },
+                          onPressed: () => _openSavedWaveform(
+                            w: context.read<AppState>().lab3VinWaveform,
+                            missingMsg: 'No Vin waveform saved yet.',
+                            title: 'Lab 3 — Vin',
+                          ),
                           child: const Text('Open Vin waveform'),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context.read<AppState>().lab3VoutWaveform;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => WaveformViewer(data: w)),
-                            );
-                          },
+                          onPressed: () => _openSavedWaveform(
+                            w: context.read<AppState>().lab3VoutWaveform,
+                            missingMsg: 'No Vout waveform saved yet.',
+                            title: 'Lab 3 — Vout',
+                          ),
                           child: const Text('Open Vout waveform'),
                         ),
                       ),
@@ -616,38 +658,54 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _vinAmpCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Vin amplitude (V)'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration:
+                        const InputDecoration(labelText: 'Vin amplitude (V)'),
                     onChanged: (text) {
                       final v = _parseDouble(text);
-                      if (v != null) context.read<AppState>().updateLab3(vinAmp: v);
+                      if (v != null) {
+                        context.read<AppState>().updateLab3(vinAmp: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _voutAmpCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Vout amplitude (V)'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration:
+                        const InputDecoration(labelText: 'Vout amplitude (V)'),
                     onChanged: (text) {
                       final v = _parseDouble(text);
-                      if (v != null) context.read<AppState>().updateLab3(voutAmp: v);
+                      if (v != null) {
+                        context.read<AppState>().updateLab3(voutAmp: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _sfACCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Scaling factor (AC)'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration:
+                        const InputDecoration(labelText: 'Scaling factor (AC)'),
                     onChanged: (text) {
                       final v = _parseDouble(text);
-                      if (v != null) context.read<AppState>().updateLab3(scalingFactorAC: v);
+                      if (v != null) {
+                        context
+                            .read<AppState>()
+                            .updateLab3(scalingFactorAC: v);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _notesFCtrl,
                     maxLines: 3,
-                    decoration: const InputDecoration(labelText: 'Notes: is it as expected?'),
+                    decoration: const InputDecoration(
+                      labelText: 'Notes: is it as expected?',
+                    ),
                     onChanged: (text) {
                       context.read<AppState>().updateLab3(
                             notesF: text.trim().isEmpty ? null : text.trim(),
@@ -659,7 +717,7 @@ class _Lab3ScreenState extends State<Lab3Screen> {
             ),
           ),
 
-          // Part G — time shift + phase shift (NEW)
+          // Part G — time shift + phase shift
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -672,7 +730,8 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Measure the time shift between the two waveforms and record it. You can open the saved waveforms from Part E to analyze them. \n'
+                    'Measure the time shift between the two waveforms and record it. '
+                    'You can open the saved waveforms from Part E to analyze them.\n'
                     'Once you have the time shift, calculate the phase shift as in the prelab.',
                   ),
                   const SizedBox(height: 12),
@@ -680,26 +739,22 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context.read<AppState>().lab3VinWaveform;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => WaveformViewer(data: w)),
-                            );
-                          },
+                          onPressed: () => _openSavedWaveform(
+                            w: context.read<AppState>().lab3VinWaveform,
+                            missingMsg: 'No Vin waveform saved yet.',
+                            title: 'Lab 3 — Vin',
+                          ),
                           child: const Text('Open Vin waveform'),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            final w = context.read<AppState>().lab3VoutWaveform;
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (_) => WaveformViewer(data: w)),
-                            );
-                          },
+                          onPressed: () => _openSavedWaveform(
+                            w: context.read<AppState>().lab3VoutWaveform,
+                            missingMsg: 'No Vout waveform saved yet.',
+                            title: 'Lab 3 — Vout',
+                          ),
                           child: const Text('Open Vout waveform'),
                         ),
                       ),
@@ -708,24 +763,30 @@ class _Lab3ScreenState extends State<Lab3Screen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _timeShiftCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Time shift (ms)'),
-                    onChanged: (text) {
-                      final v = _parseDouble(text);
-                      if (v != null) context.read<AppState>().updateLab3(timeShiftMs: v);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-
-                  // NEW: phase shift
-                  TextField(
-                    controller: _phaseShiftCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Phase shift (deg)'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration:
+                        const InputDecoration(labelText: 'Time shift (ms)'),
                     onChanged: (text) {
                       final v = _parseDouble(text);
                       if (v != null) {
-                        context.read<AppState>().updateLab3(phaseShiftDeg: v);
+                        context.read<AppState>().updateLab3(timeShiftMs: v);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _phaseShiftCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration:
+                        const InputDecoration(labelText: 'Phase shift (deg)'),
+                    onChanged: (text) {
+                      final v = _parseDouble(text);
+                      if (v != null) {
+                        context
+                            .read<AppState>()
+                            .updateLab3(phaseShiftDeg: v);
                       }
                     },
                   ),

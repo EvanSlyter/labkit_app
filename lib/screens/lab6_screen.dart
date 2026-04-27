@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../state/app_state.dart';
 import '../../widgets/connection_warning.dart';
-//import '../widgets/waveform_viewer.dart';
-//import 'dart:math' as math;
 
 class Lab6Screen extends StatefulWidget {
   const Lab6Screen({super.key});
+
   @override
   State<Lab6Screen> createState() => _Lab6ScreenState();
 }
@@ -35,7 +35,6 @@ class _Lab6ScreenState extends State<Lab6Screen> {
       rows.length,
       (i) => TextEditingController(text: rows[i].vout_mV?.toString() ?? ''),
     );
-
     final s = context.read<AppState>().lab6;
     _fMinus3dBCtrl.text = s.fMinus3dBApproxHz?.toString() ?? '';
     _rCtrl.text = s.R_Ohm?.toString() ?? '';
@@ -63,6 +62,66 @@ class _Lab6ScreenState extends State<Lab6Screen> {
     final t = s.trim();
     if (t.isEmpty) return null;
     return double.tryParse(t);
+  }
+
+  /// Meter insert helper for Vin/Vout (mV RMS).
+  void _attachMeterInsert({
+    required bool connected,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+    int decimals = 1,
+  }) {
+    FocusScope.of(context).unfocus();
+    final app = context.read<AppState>();
+
+    if (!connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connect to use the meter.')),
+      );
+      return;
+    }
+
+    app.setActiveInsertTarget((double valueSI) {
+      // valueSI is in volts from the meter; convert to mV RMS for the table
+      final mV = valueSI * 1000.0;
+      controller.text = mV.toStringAsFixed(decimals);
+      applyToState(mV);
+    });
+
+    app.showMeterOverlay(context);
+  }
+
+  Widget _meterableVinVoutField({
+    required bool connected,
+    required String label,
+    required TextEditingController controller,
+    required void Function(double v) applyToState,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: label),
+            onChanged: (t) {
+              final v = _parseDouble(t);
+              if (v != null) applyToState(v);
+            },
+          ),
+        ),
+        IconButton(
+          tooltip: 'Use meter reading',
+          icon: const Icon(Icons.download),
+          onPressed: () => _attachMeterInsert(
+            connected: connected,
+            controller: controller,
+            applyToState: applyToState,
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -101,7 +160,6 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                     'f = 1 Hz, phase = 0°, offset = 0 V, amplitude = 2 V.',
                   ),
                   const SizedBox(height: 12),
-                  // Diagram (lab6_circuit1.png)
                   Container(
                     height: 240,
                     decoration: BoxDecoration(
@@ -152,9 +210,8 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                         if (!connected) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Connect to the device to change inputs.',
-                              ),
+                              content:
+                                  Text('Connect to the device to change inputs.'),
                             ),
                           );
                           return;
@@ -162,20 +219,18 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                         if (!app.lab6.circuitBuilt_6) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Check the box after building first.',
-                              ),
+                              content:
+                                  Text('Check the box after building first.'),
                             ),
                           );
                           return;
                         }
-                        // NOTE: If “amplitude = 2 V” means 2 V peak-to-peak, pass 2000 mVpp; if 2 V peak, pass 4000 mVpp.
                         context.read<AppState>().sendEnableSignalGeneratorSine(
-                          freqHz: 1,
-                          amplitude_mVpp: 2000, // adjust to 4000 if 2 V = peak
-                          offset_mV: 0,
-                          phase_mdeg: 0,
-                        );
+                              freqHz: 1,
+                              amplitude_mVpp: 2000, // adjust if needed
+                              offset_mV: 0,
+                              phase_mdeg: 0,
+                            );
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
@@ -239,7 +294,7 @@ class _Lab6ScreenState extends State<Lab6Screen> {
             ),
           ),
 
-          // Part C — Fill the rest of the table for all other frequencies
+          // Part C — Fill the rest of the table
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -272,7 +327,7 @@ class _Lab6ScreenState extends State<Lab6Screen> {
             ),
           ),
 
-          // Part D — Explain how to draw a Bode plot
+          // Part D — Bode plot description
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -285,16 +340,16 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Using the data from your table, create a Bode Plot of the magnitude response. \n'
-                    'Remember that the horizontal axis of the plot will be log(frequency), and the vertical axis will be decibels.\n'
-                    'Decibels (dB) can be calculated using dB = 20log(Vout/Vin)',
+                    'Using the data from your table, create a Bode Plot of the magnitude response.\n'
+                    'The horizontal axis is log(frequency); the vertical axis is decibels.\n'
+                    'Use dB = 20 log10(Vout/Vin).',
                   ),
                 ],
               ),
             ),
           ),
 
-          // Part E — Record –3 dB frequency and compare to f0 = 1/(2πRC)
+          // Part E — –3 dB frequency and theoretical f0
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -312,16 +367,16 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _fMinus3dBCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'f_–3dB (Hz)'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration:
+                        const InputDecoration(labelText: 'f_–3dB (Hz)'),
                     onChanged: (t) {
                       final v = _parseDouble(t);
                       if (v != null) {
                         context.read<AppState>().updateLab6Bode(
-                          fMinus3dBApproxHz: v,
-                        );
+                              fMinus3dBApproxHz: v,
+                            );
                       }
                       setState(() {});
                     },
@@ -329,9 +384,8 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: _rCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(labelText: 'R (Ω)'),
                     onChanged: (t) {
                       final v = _parseDouble(t);
@@ -344,9 +398,8 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: _cCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(labelText: 'C (µF)'),
                     onChanged: (t) {
                       final v = _parseDouble(t);
@@ -363,7 +416,8 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                       final fPlot = s.fMinus3dBApproxHz;
                       final f0 = s.f0TheoryHz;
                       final comp = (fPlot != null && f0 != null)
-                          ? 'Δ = ${(fPlot - f0).toStringAsFixed(2)} Hz (relative: ${((fPlot - f0) / f0 * 100).toStringAsFixed(1)} %)'
+                          ? 'Δ = ${(fPlot - f0).toStringAsFixed(2)} Hz '
+                              '(relative: ${((fPlot - f0) / f0 * 100).toStringAsFixed(1)} %)'
                           : 'Enter R and C to see f0 and comparison.';
                       return Text(
                         'Theoretical f0 = ${f0 != null ? f0.toStringAsFixed(2) : '—'} Hz\n$comp',
@@ -375,7 +429,7 @@ class _Lab6ScreenState extends State<Lab6Screen> {
             ),
           ),
 
-          // Part F — High-pass or Low-pass?
+          // Part F — High-pass or low-pass?
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -395,12 +449,12 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                     title: const Text('High-pass'),
                     value: _isHighPass == true,
                     onChanged: (checked) {
-                      setState(
-                        () => _isHighPass = (checked ?? false) ? true : null,
-                      );
-                      context.read<AppState>().updateLab6HighLow(
-                        isHighPass: _isHighPass,
-                      );
+                      setState(() {
+                        _isHighPass = (checked ?? false) ? true : null;
+                      });
+                      context
+                          .read<AppState>()
+                          .updateLab6HighLow(isHighPass: _isHighPass);
                     },
                     controlAffinity: ListTileControlAffinity.leading,
                   ),
@@ -408,12 +462,12 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                     title: const Text('Low-pass'),
                     value: _isHighPass == false && _isHighPass != null,
                     onChanged: (checked) {
-                      setState(
-                        () => _isHighPass = (checked ?? false) ? false : null,
-                      );
-                      context.read<AppState>().updateLab6HighLow(
-                        isHighPass: _isHighPass,
-                      );
+                      setState(() {
+                        _isHighPass = (checked ?? false) ? false : null;
+                      });
+                      context
+                          .read<AppState>()
+                          .updateLab6HighLow(isHighPass: _isHighPass);
                     },
                     controlAffinity: ListTileControlAffinity.leading,
                   ),
@@ -421,11 +475,11 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                   TextField(
                     controller: _notesHL,
                     maxLines: 4,
-                    decoration: const InputDecoration(labelText: 'Explanation'),
+                    decoration:
+                        const InputDecoration(labelText: 'Explanation'),
                     onChanged: (t) {
                       context.read<AppState>().updateLab6HighLow(
-                        notes: t.trim().isEmpty ? null : t.trim(),
-                      );
+                          notes: t.trim().isEmpty ? null : t.trim());
                     },
                   ),
                 ],
@@ -443,11 +497,10 @@ class _Lab6ScreenState extends State<Lab6Screen> {
               const Spacer(),
               ElevatedButton(
                 onPressed: () {
+                  // Data already kept in AppState as user types.
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text(
-                        'Lab 6 progress saved (values persist in memory)',
-                      ),
+                      content: Text('Lab 6 progress saved (in memory)'),
                     ),
                   );
                 },
@@ -460,7 +513,7 @@ class _Lab6ScreenState extends State<Lab6Screen> {
     );
   }
 
-  // Helper: one table row (frequency, Vin/Vout inputs, ratio, set generator button)
+  // Table row: frequency, stacked Vin/Vout fields with meter icons, ratio, generator button
   Widget _lab6TableRow({
     required BuildContext context,
     required int index,
@@ -475,6 +528,7 @@ class _Lab6ScreenState extends State<Lab6Screen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header row with frequency and optional "Set generator"
         Row(
           children: [
             Text(
@@ -495,13 +549,14 @@ class _Lab6ScreenState extends State<Lab6Screen> {
                   }
                   app.sendEnableSignalGeneratorSine(
                     freqHz: row.fHz,
-                    // Keep same amplitude spec as Part A (adjust if your firmware expects peak vs p–p)
-                    amplitude_mVpp: 2000, // adjust to 4000 if 2 V = peak
+                    amplitude_mVpp: 2000, // same as Part A
                     offset_mV: 0,
                     phase_mdeg: 0,
                   );
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Generator set to ${row.fHz} Hz')),
+                    SnackBar(
+                      content: Text('Generator set to ${row.fHz} Hz'),
+                    ),
                   );
                 },
                 child: const Text('Set generator'),
@@ -509,46 +564,35 @@ class _Lab6ScreenState extends State<Lab6Screen> {
           ],
         ),
         const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: vinCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'Vin (mV RMS)'),
-                onChanged: (t) {
-                  final v = _parseDouble(t);
-                  if (v != null) app.updateLab6Row(index: index, vin_mV: v);
-                  setState(() {});
-                },
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: voutCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'Vout (mV RMS)'),
-                onChanged: (t) {
-                  final v = _parseDouble(t);
-                  if (v != null) app.updateLab6Row(index: index, vout_mV: v);
-                  setState(() {});
-                },
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 100,
-              child: Text(
-                'Vout/Vin: ${row.ratio != null ? row.ratio!.toStringAsFixed(3) : '—'}',
-                textAlign: TextAlign.right,
-              ),
-            ),
-          ],
+
+        // Vin (stacked) with meter icon
+        _meterableVinVoutField(
+          connected: connected,
+          label: 'Vin (mV RMS)',
+          controller: vinCtrl,
+          applyToState: (v) {
+            app.updateLab6Row(index: index, vin_mV: v);
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 6),
+
+        // Vout (stacked) with meter icon
+        _meterableVinVoutField(
+          connected: connected,
+          label: 'Vout (mV RMS)',
+          controller: voutCtrl,
+          applyToState: (v) {
+            app.updateLab6Row(index: index, vout_mV: v);
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 6),
+
+        // Ratio display
+        Text(
+          'Vout/Vin: ${row.ratio != null ? row.ratio!.toStringAsFixed(3) : '—'}',
+          textAlign: TextAlign.left,
         ),
       ],
     );
